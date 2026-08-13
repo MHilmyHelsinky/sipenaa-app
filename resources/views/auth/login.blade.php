@@ -32,27 +32,27 @@
             background: linear-gradient(180deg, #1c79e1 0%, #0b53a3 100%);
             color: #ffffff;
             padding: 4rem 4rem 3.5rem 4rem;
-            border-top-right-radius: 7rem;
-            border-bottom-right-radius: 7rem;
+            -webkit-clip-path: circle(60% at 26% 50%);
+            clip-path: circle(60% at 26% 50%);
         }
         .left-panel::before {
             content: '';
             position: absolute;
-            width: 560px;
-            height: 560px;
+            width: 600px;
+            height: 600px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.08);
             top: 50%;
-            right: -240px;
+            right: -120px;
             transform: translateY(-50%);
         }
         .left-panel::after {
             content: '';
             position: absolute;
-            width: 360px;
-            height: 360px;
+            width: 420px;
+            height: 420px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.14);
+            background: rgba(255, 255, 255, 0.12);
             bottom: -160px;
             left: -120px;
         }
@@ -66,20 +66,21 @@
             z-index: 2;
         }
         .left-panel .header .logo-box {
-            width: 3.1rem;
-            min-width: 3.1rem;
-            height: 3.1rem;
-            background: rgba(255,255,255,0.96);
-            border-radius: 1rem;
+            width: 4.8rem;
+            min-width: 4.8rem;
+            height: 4.8rem;
+            background: transparent;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 0.45rem;
+            padding: 0;
         }
         .left-panel .header .logo-box img {
-            max-width: 100%;
-            max-height: 100%;
+            width: 90%;
+            height: 90%;
             object-fit: contain;
+            filter: none;
         }
         .left-panel .header .header-text {
             font-size: 0.78rem;
@@ -270,14 +271,14 @@
         }
         .floating-logo {
             position: absolute;
-            left: 54%;
+            left: 52%;
             top: 52%;
             transform: translate(-50%, -50%);
             width: 240px;
             height: 240px;
             border-radius: 50%;
             background: linear-gradient(180deg, #1e79df 0%, #0b53a3 100%);
-            border: 10px solid #ffffff;
+            border: 12px solid #ffffff;
             box-shadow: 0 28px 68px rgba(0,0,0,0.22);
             display: flex;
             align-items: center;
@@ -285,10 +286,10 @@
             z-index: 3;
         }
         .floating-logo img {
-            width: 64%;
-            height: 64%;
+            width: 78%;
+            height: 78%;
             object-fit: contain;
-            filter: brightness(0) invert(1);
+            filter: none;
         }
         @media (max-width: 1200px) {
             .page {
@@ -301,8 +302,8 @@
                 padding: 3rem 2rem;
             }
             .floating-logo {
-                width: 180px;
-                height: 180px;
+                width: 200px;
+                height: 200px;
                 left: 54%;
             }
         }
@@ -324,8 +325,8 @@
             .floating-logo {
                 left: 50%;
                 top: 38%;
-                width: 180px;
-                height: 180px;
+                width: 200px;
+                height: 200px;
             }
         }
     </style>
@@ -357,7 +358,7 @@
                     </div>
                     <div class="feature">
                         <i class="fas fa-chart-bar"></i>
-                        <span>Laporan<br>& Recap</span>
+                        <span>Laporan<br></span>
                     </div>
                 </div>
             </div>
@@ -395,7 +396,7 @@
         </div>
 
         <div class="floating-logo">
-            <img src="{{ asset('images/'.rawurlencode('logo dalam sipena.png')) }}" alt="Logo SIPENA">
+            <img src="{{ asset('images/logo-sipena.png.png') }}" alt="Logo SIPENA">
         </div>
     </div>
     <script>
