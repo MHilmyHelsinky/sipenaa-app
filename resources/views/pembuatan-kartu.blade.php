@@ -10,9 +10,9 @@
         * { box-sizing: border-box; }
         html, body { margin: 0; min-height: 100%; background: #f5f8ff; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
         body { color: #102a43; }
-        .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 2rem; background: #ffffff; box-shadow: 0 1px 12px rgba(15, 23, 42, 0.08); position: sticky; top: 0; z-index: 20; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.25rem 2rem; max-height: 90px; background: #ffffff; box-shadow: 0 1px 12px rgba(15, 23, 42, 0.08); position: sticky; top: 0; z-index: 20; }
         .brand { display: flex; align-items: center; gap: 0.85rem; text-decoration: none; }
-        .brand img { width: 48px; height: 48px; object-fit: contain; }
+        .brand img { width: 150px; height: auto; max-height: 80px; object-fit: contain; }
         .brand-text { font-weight: 800; font-size: 1rem; letter-spacing: 0.02em; color: #102a43; }
         .nav-links { display: flex; align-items: center; gap: 0.75rem; }
         .nav-link { padding: 0.75rem 1rem; border-radius: 999px; color: #475569; text-decoration: none; font-weight: 700; transition: background 0.2s ease, color 0.2s ease; }
@@ -53,7 +53,7 @@
         .button-secondary { background: #f8fafc; color: #1d4ed8; border: 1px solid #cbd5e1; }
         .photo-panel { background: #f8fbff; border-radius: 1.25rem; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; justify-content: space-between; }
         .photo-panel-title { font-weight: 700; color: #102a43; }
-        .photo-preview { width: 100%; min-height: 260px; border-radius: 1rem; background: #ffffff; border: 1px dashed #cbd5e1; display: grid; place-items: center; color: #64748b; text-align: center; padding: 1rem; }
+        .photo-preview { width: 100%; min-height: 260px; border-radius: 1rem; background: #ffffff; border: 1px dashed #cbd5e1; display: grid; place-items: center; color: #64748b; text-align: center; padding: 1rem; overflow: hidden; }
         .photo-placeholder { max-width: 100%; }
         .upload-label { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 0.95rem 1rem; border-radius: 999px; background: #eff6ff; color: #1d4ed8; text-align: center; cursor: pointer; }
         .photo-note { color: #64748b; font-size: 0.95rem; }
@@ -173,5 +173,26 @@
             </form>
         </section>
     </main>
+
+    <script>
+        const fotoInput = document.getElementById('foto');
+        const photoPreview = document.querySelector('.photo-preview');
+
+        fotoInput.addEventListener('change', function() {
+            const file = this.files[0];
+            
+            if (file) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    photoPreview.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 1rem;">`;
+                };
+                
+                reader.readAsDataURL(file);
+            } else {
+                photoPreview.innerHTML = '<div class="photo-placeholder">Preview foto akan muncul setelah upload.</div>';
+            }
+        });
+    </script>
 </body>
 </html>
