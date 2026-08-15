@@ -16,7 +16,8 @@ class OfficeDocumentService
             throw new RuntimeException('Direktori output PDF tidak dapat dibuat: ' . $outputDirectory);
         }
 
-        $binary = env('LIBREOFFICE_BIN', 'soffice');
+        $binary = $this->resolveLibreOfficeBinary();
+
         $command = sprintf(
             '%s --headless --convert-to pdf --outdir %s %s 2>&1',
             escapeshellarg($binary),
@@ -28,7 +29,7 @@ class OfficeDocumentService
 
         if ($exitCode !== 0) {
             throw new RuntimeException(
-                'Konversi DOCX ke PDF gagal. Pastikan LibreOffice/soffice terpasang. Output: ' . implode("\n", $output)
+                'Konversi DOCX ke PDF gagal. LibreOffice tidak dapat dijalankan. Output: ' . implode("\n", $output)
             );
         }
 
@@ -39,5 +40,39 @@ class OfficeDocumentService
         }
 
         return $pdfPath;
+    }
+
+    protected function resolveLibreOfficeBinary(): string
+    {
+        $configured = trim((string) env('LIBREOFFICE_BIN', ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $candidates = PHP_OS_FAMILY === 'Windows'
+            ? [
+                'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
+                'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+            ]
+            : [
+                '/usr/bin/soffice',
+                '/usr/local/bin/soffice',
+            ];
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        $command = PHP_OS_FAMILY === 'Windows' ? 'where soffice' : 'command -v soffice';
+        exec($command, $output, $exitCode);
+        if ($exitCode === 0 && ! empty($output[0])) {
+            return trim($output[0]);
+        }
+
+        throw new RuntimeException(
+            'LibreOffice tidak ditemukan. Pasang LibreOffice pada SERVER aplikasi, atau isi LIBREOFFICE_BIN pada file .env.'
+        );
     }
 }
