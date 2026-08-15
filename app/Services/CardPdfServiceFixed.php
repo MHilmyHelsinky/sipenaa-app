@@ -18,21 +18,23 @@ class CardPdfServiceFixed
     private const PHOTO_W = 61.35;
     private const PHOTO_H = 68.20;
 
-    // Posisi/ukuran dikembalikan ke elemen asli dari template PDF.
-    private const STAMP_X = 80.50;
-    private const STAMP_Y = 85.65;
-    private const STAMP_W = 69.33;
-    private const STAMP_H = 70.35;
+    // Keduanya sengaja diletakkan di dalam area foto supaya tidak menimpa
+    // blok teks pejabat di sebelah kanan foto.
+    private const STAMP_X = 47.00;
+    private const STAMP_Y = 91.00;
+    private const STAMP_W = 30.00;
+    private const STAMP_H = 30.50;
 
-    private const SIGN_X = 143.45;
-    private const SIGN_Y = 105.05;
-    private const SIGN_W = 53.30;
-    private const SIGN_H = 32.50;
+    private const SIGN_X = 36.00;
+    private const SIGN_Y = 124.00;
+    private const SIGN_W = 45.00;
+    private const SIGN_H = 20.00;
 
     private const FIELD_X = 102.50;
     private const FIELD_SIZE = 9.5;
     private const FIELD_MAX_WIDTH = 118.00;
 
+    // "Banda Aceh," berasal dari template; tanggal dicetak tepat di sebelahnya.
     private const PRINT_DATE_X = 139.0;
     private const PRINT_DATE_Y = 93.20;
 
@@ -91,7 +93,7 @@ class CardPdfServiceFixed
             $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
         }
 
-        // Layer teratas: stempel dan tanda tangan.
+        // Overlay resmi di atas foto, bukan di atas teks pejabat.
         $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H);
         $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H);
 
@@ -106,8 +108,6 @@ class CardPdfServiceFixed
             require_once $fontsClassFile;
         }
 
-        // Font hanya dari file TTF nyata. Jangan mengekstraknya dari PDF karena itu
-        // merupakan subset/font program dan bukan TTF siap-daftar.
         $candidates = array_filter([
             config('sipena.franklin_font_path'),
             storage_path('app/fonts/framd.ttf'),
@@ -130,7 +130,7 @@ class CardPdfServiceFixed
             }
         }
 
-        // Fallback aman. Preview tetap berjalan walau font Franklin belum disediakan.
+        // Preview tidak boleh gagal hanya karena font belum dipasang.
         return 'helvetica';
     }
 
