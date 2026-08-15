@@ -78,7 +78,6 @@ class WordDownloadControllerFixed extends Controller
         $mediaPath = null;
         $newRelsXml = $relsXml;
 
-        // Cari Rectangle 6 SEBELUM ${foto} diganti menjadi kosong.
         if ($photoPath) {
             $fotoPos = strpos($documentXml, '${foto}');
             if ($fotoPos === false) {
@@ -114,7 +113,6 @@ class WordDownloadControllerFixed extends Controller
             $relationship = '<Relationship Id="' . $rId . '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/sipena_photo.' . $extension . '"/>';
             $newRelsXml = preg_replace('/<\/Relationships>/', $relationship . '</Relationships>', $relsXml, 1);
 
-            // Gambar mengisi Rectangle 6 dengan ukuran shape Word asli.
             $blipFill = '<a:blipFill><a:blip r:embed="' . $rId . '"/><a:stretch><a:fillRect/></a:stretch></a:blipFill>';
             $newShapeXml = preg_replace(
                 '/(<wps:spPr\b[^>]*>.*?)(?:<a:noFill\s*\/?>)/s',
@@ -136,7 +134,10 @@ class WordDownloadControllerFixed extends Controller
             $documentXml = str_replace('${foto}', '', $documentXml);
         }
 
-        // Isi teks langsung pada XML; TemplateProcessor tidak dipakai agar Word shape tidak rusak.
+        // Pastikan placeholder ${foto} juga hilang dari fallback/compatibility layer.
+        $documentXml = str_replace('${foto}', '', $documentXml);
+
+        // Isi teks langsung pada XML; TemplateProcessor tidak dipakai agar shape Word tetap utuh.
         foreach ($values as $placeholder => $value) {
             $escaped = htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
             $documentXml = str_replace($placeholder, $escaped, $documentXml);
