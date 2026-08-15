@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\WordDownloadController;
 use Illuminate\Support\Facades\Route;
 
 // 1. Mengubah halaman awal agar langsung dialihkan (redirect) ke halaman login
@@ -39,7 +40,9 @@ Route::get('/preview-kartu/{card}/download-pdf', [DashboardController::class, 'd
     ->middleware(['auth'])
     ->name('preview.kartu.download.pdf');
 
-Route::get('/preview-kartu/{card}/download-word', [DashboardController::class, 'downloadWord'])
+// Word sekarang dibuat oleh controller khusus agar foto ${foto} di text-box Word
+// benar-benar menjadi gambar di dalam shape template.
+Route::get('/preview-kartu/{card}/download-word', [WordDownloadController::class, 'download'])
     ->middleware(['auth'])
     ->name('preview.kartu.download.word');
 
