@@ -43,7 +43,20 @@
         .field-group { display: flex; flex-direction: column; gap: 0.5rem; }
         .field-group label { font-weight: 700; color: #334155; }
         .field-group input[type="text"], .field-group input[type="date"] { width: 100%; border: 1px solid #cbd5e1; border-radius: 0.85rem; padding: 0.95rem 1rem; font-size: 0.95rem; color: #0f172a; }
-        .field-group input[type="file"] { width: 100%; }
+        #foto,
+        .field-group input[type="file"] {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
         .radio-row { display: flex; gap: 1rem; flex-wrap: wrap; }
         .radio-option { display: inline-flex; align-items: center; gap: 0.5rem; background: #f8fafc; padding: 0.85rem 1rem; border-radius: 999px; border: 1px solid #cbd5e1; cursor: pointer; }
         .radio-option input { accent-color: #1d4ed8; }
@@ -54,8 +67,33 @@
         .photo-panel { background: #f8fbff; border-radius: 1.25rem; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; justify-content: space-between; }
         .photo-panel-title { font-weight: 700; color: #102a43; }
         .photo-preview { width: 100%; min-height: 260px; border-radius: 1rem; background: #ffffff; border: 1px dashed #cbd5e1; display: grid; place-items: center; color: #64748b; text-align: center; padding: 1rem; overflow: hidden; }
+        .photo-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 1rem; }
         .photo-placeholder { max-width: 100%; }
-        .upload-label { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 0.95rem 1rem; border-radius: 999px; background: #eff6ff; color: #1d4ed8; text-align: center; cursor: pointer; }
+        .upload-box {
+            border: 1.5px dashed #8fb6ff;
+            border-radius: 1rem;
+            background: #f8fbff;
+            min-height: 160px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.45rem;
+            text-align: center;
+            cursor: pointer;
+            color: #1d4ed8;
+            transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+            padding: 1rem;
+        }
+        .upload-box:hover, .upload-box:focus-visible {
+            border-color: #1d4ed8;
+            background: #eef5ff;
+            transform: translateY(-1px);
+            outline: none;
+        }
+        .upload-icon { font-size: 2rem; line-height: 1; }
+        .upload-text { font-weight: 700; font-size: 1rem; }
+        .upload-meta { font-size: 0.82rem; color: #64748b; }
         .photo-note { color: #64748b; font-size: 0.95rem; }
         @media (max-width: 980px) { .form-grid { grid-template-columns: 1fr; } .field-row { grid-template-columns: 1fr; } }
         @media (max-width: 720px) { .topbar { flex-wrap: wrap; justify-content: center; } .nav-links { width: 100%; justify-content: center; flex-wrap: wrap; } }
@@ -165,8 +203,12 @@
                         <div class="photo-preview">
                             <div class="photo-placeholder">Preview foto akan muncul setelah upload.</div>
                         </div>
-                        <label class="upload-label" for="foto">Unggah Foto</label>
-                        <input type="file" id="foto" name="foto" accept="image/*">
+                        <div class="upload-box" id="uploadBox" tabindex="0" role="button" aria-label="Pilih foto siswa">
+                            <div class="upload-icon"><i class="fa-solid fa-upload"></i></div>
+                            <div class="upload-text">Klik untuk upload foto</div>
+                            <div class="upload-meta">Format: JPG, PNG (Max 20MB)</div>
+                        </div>
+                        <input type="file" id="foto" name="foto" accept="image/*" hidden>
                         <p class="photo-note">Foto disimpan di database saat formulir disubmit.</p>
                     </aside>
                 </div>
@@ -177,21 +219,42 @@
     <script>
         const fotoInput = document.getElementById('foto');
         const photoPreview = document.querySelector('.photo-preview');
+        const uploadBox = document.getElementById('uploadBox');
+
+        const resetPreview = () => {
+            photoPreview.innerHTML = '<div class="photo-placeholder">Preview foto akan muncul setelah upload.</div>';
+        };
+
+        uploadBox.addEventListener('click', () => fotoInput.click());
+        uploadBox.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                fotoInput.click();
+            }
+        });
 
         fotoInput.addEventListener('change', function() {
-            const file = this.files[0];
-            
-            if (file) {
-                const reader = new FileReader();
-                
-                reader.onload = function(e) {
-                    photoPreview.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 1rem;">`;
-                };
-                
-                reader.readAsDataURL(file);
-            } else {
-                photoPreview.innerHTML = '<div class="photo-placeholder">Preview foto akan muncul setelah upload.</div>';
+            const file = this.files && this.files[0];
+
+            if (!file) {
+                resetPreview();
+                return;
             }
+
+            if (!file.type.startsWith('image/')) {
+                alert('Format file harus berupa gambar.');
+                this.value = '';
+                resetPreview();
+                return;
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                photoPreview.innerHTML = `<img src="${e.target.result}" alt="Preview foto siswa">`;
+            };
+
+            reader.readAsDataURL(file);
         });
     </script>
 </body>

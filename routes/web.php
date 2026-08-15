@@ -27,6 +27,18 @@ Route::post('/pembuatan-kartu-baru', [DashboardController::class, 'storeCard'])
     ->middleware(['auth'])
     ->name('pembuatan.kartu.store');
 
+Route::get('/preview-kartu/{card}', [DashboardController::class, 'previewKartu'])
+    ->middleware(['auth'])
+    ->name('preview.kartu');
+
+Route::get('/preview-kartu/{card}/download-pdf', [DashboardController::class, 'downloadPdf'])
+    ->middleware(['auth'])
+    ->name('preview.kartu.download.pdf');
+
+Route::get('/preview-kartu/{card}/download-word', [DashboardController::class, 'downloadWord'])
+    ->middleware(['auth'])
+    ->name('preview.kartu.download.word');
+
 Route::get('/data-kartu', [DashboardController::class, 'dataKartu'])
     ->middleware(['auth'])
     ->name('data.kartu');

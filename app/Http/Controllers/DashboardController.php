@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Card;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use PhpOffice\PhpWord\IOFactory;
+use PhpOffice\PhpWord\PhpWord;
+use PhpOffice\PhpWord\TemplateProcessor;
 
 class DashboardController extends Controller
 {
@@ -88,7 +92,7 @@ class DashboardController extends Controller
             $fotoPath = Storage::disk('public')->putFile('card_photos', $request->file('foto'));
         }
 
-        Card::create([
+        $card = Card::create([
             'nisn' => $validated['nisn'],
             'nama_lengkap' => $validated['nama_lengkap'],
             'tempat_lahir' => $validated['tempat_lahir'],
@@ -100,7 +104,120 @@ class DashboardController extends Controller
             'foto_path' => $fotoPath,
         ]);
 
-        return back()->with('success', 'Kartu siswa berhasil disimpan ke database.');
+        return redirect()->route('preview.kartu', ['card' => $card->id])
+            ->with('success', 'Kartu siswa berhasil disimpan ke database.');
+    }
+
+    protected function getTemplateValues(Card $card): array
+    {
+        $alamat = trim(
+            ($card->desa ? $card->desa . ', ' : '') .
+            ($card->kecamatan ? $card->kecamatan . ', ' : '') .
+            ($card->kabupaten ?? '')
+        );
+
+        $fotoPath = null;
+        if ($card->foto_path && Storage::disk('public')->exists($card->foto_path)) {
+            $fotoPath = Storage::disk('public')->path($card->foto_path);
+        }
+
+        return [
+            'nama' => $card->nama_lengkap ?? '-',
+            'nisn' => $card->nisn ?? '-',
+            'tempat_lahir' => $card->tempat_lahir ?? '-',
+            'tgl_lahir' => optional($card->tanggal_lahir)->format('d-m-Y') ?? '-',
+            'jenis_kelamin' => $card->jenis_kelamin ?? '-',
+            'alamat' => $alamat ?: '-',
+            'foto' => $fotoPath,
+        ];
+    }
+
+    protected function generateTemplateDocument(Card $card): string
+    {
+        $templatePath = storage_path('app/templates/merge_nisn_2020.docx');
+
+        if (! file_exists($templatePath)) {
+            abort(500, 'Template DOCX tidak ditemukan di storage/app/templates/merge_nisn_2020.docx');
+        }
+
+        $processor = new TemplateProcessor($templatePath);
+        $values = $this->getTemplateValues($card);
+
+        foreach ($values as $key => $value) {
+            $variants = [$key, '$' . $key, '${' . $key . '}'];
+
+            if ($key === 'foto') {
+                if ($value) {
+                    foreach ($variants as $variant) {
+                        $processor->setImageValue($variant, [
+                            'path' => $value,
+                            'width' => 150,
+                            'height' => 180,
+                            'ratio' => true,
+                        ]);
+                    }
+                } else {
+                    foreach ($variants as $variant) {
+                        $processor->setValue($variant, '');
+                    }
+                }
+
+                continue;
+            }
+
+            foreach ($variants as $variant) {
+                $processor->setValue($variant, (string) $value);
+            }
+        }
+
+        $directory = storage_path('app/public/card_exports');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+
+        $filename = 'kartu_' . Str::slug($card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.docx';
+        $path = $directory . DIRECTORY_SEPARATOR . $filename;
+        $processor->saveAs($path);
+
+        return $path;
+    }
+
+    public function previewKartu(Card $card): View
+    {
+        return view('preview-kartu', [
+            'card' => $card,
+            'templateValues' => $this->getTemplateValues($card),
+        ]);
+    }
+
+    public function downloadPdf(Card $card)
+    {
+        $photoDataUri = null;
+
+        if ($card->foto_path && Storage::disk('public')->exists($card->foto_path)) {
+            $photoPath = Storage::disk('public')->path($card->foto_path);
+            $photoDataUri = 'data:' . mime_content_type($photoPath) . ';base64,' . base64_encode(file_get_contents($photoPath));
+        }
+
+        $filename = 'kartu_' . Str::slug($card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.pdf';
+
+        return Pdf::loadView('card-pdf', [
+            'card' => $card,
+            'photoDataUri' => $photoDataUri,
+            'templateValues' => $this->getTemplateValues($card),
+        ])
+            ->setPaper('A4', 'portrait')
+            ->download($filename);
+    }
+
+    public function downloadWord(Card $card)
+    {
+        $filename = 'kartu_' . Str::slug($card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.docx';
+        $path = $this->generateTemplateDocument($card);
+
+        return response()->download($path, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ])->deleteFileAfterSend(true);
     }
 
     public function dataKartu(): View
