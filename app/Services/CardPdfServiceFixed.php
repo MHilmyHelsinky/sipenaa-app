@@ -7,19 +7,18 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use setasign\Fpdi\Tcpdf\Fpdi;
-use TCPDF_FONTS;
 
 class CardPdfServiceFixed
 {
     private const PAGE_WIDTH = 567.0;
     private const PAGE_HEIGHT = 850.56;
 
+    // Posisi foto/stempel/tanda tangan dipertahankan dari versi sebelumnya.
     private const PHOTO_X = 21.20;
     private const PHOTO_Y = 85.65;
     private const PHOTO_W = 61.35;
     private const PHOTO_H = 68.20;
 
-    // Disusun mengikuti layout yang Anda minta: stempel dan tanda tangan berada di area foto/pejabat.
     private const STAMP_X = 78.50;
     private const STAMP_Y = 87.20;
     private const STAMP_W = 41.50;
@@ -34,8 +33,8 @@ class CardPdfServiceFixed
     private const FIELD_SIZE = 9.5;
     private const FIELD_MAX_WIDTH = 118.00;
 
-    // Banda Aceh, sudah ada di template PDF; tanggal cetak ditambahkan tepat di sampingnya.
-    private const PRINT_DATE_X = 144.20;
+    // Hanya tanggal cetak yang ditambahkan di samping teks "Banda Aceh," yang sudah ada di template.
+    private const PRINT_DATE_X = 139.0;
     private const PRINT_DATE_Y = 93.20;
 
     public function render(Card $card): string
@@ -61,8 +60,6 @@ class CardPdfServiceFixed
         $filename = 'kartu_' . $safeName . '_' . ($card->nisn ?: 'card') . '.pdf';
         $outputPath = $outputDir . DIRECTORY_SEPARATOR . $filename;
 
-        $fontName = $this->ensureFranklinGothicFont($template);
-
         $pdf = new Fpdi('P', 'pt', [self::PAGE_WIDTH, self::PAGE_HEIGHT], true, 'UTF-8');
         $pdf->SetAutoPageBreak(false);
         $pdf->SetMargins(0, 0, 0);
@@ -79,8 +76,9 @@ class CardPdfServiceFixed
         $pdf->useTemplate($templatePage, 0, 0, self::PAGE_WIDTH, self::PAGE_HEIGHT, true);
 
         $values = $this->values($card);
+        $fontName = $this->ensureFranklinGothicMedium();
 
-        // Semua field dinamis: Franklin Gothic Medium 9.5 pt.
+        // Semua teks dinamis menggunakan Franklin Gothic Medium 9.5 pt.
         $this->writeFitted($pdf, $fontName, $values['nisn'], self::FIELD_X, 25.10, self::FIELD_MAX_WIDTH);
         $this->writeFitted($pdf, $fontName, $values['nama'], self::FIELD_X, 35.90, self::FIELD_MAX_WIDTH);
         $this->writeFitted($pdf, $fontName, $values['tempat_lahir'], self::FIELD_X, 46.70, self::FIELD_MAX_WIDTH);
@@ -88,6 +86,7 @@ class CardPdfServiceFixed
         $this->writeFitted($pdf, $fontName, $values['alamat'], self::FIELD_X, 68.20, self::FIELD_MAX_WIDTH);
         $this->writeFitted($pdf, $fontName, $values['jenis_kelamin'], self::FIELD_X, 79.00, self::FIELD_MAX_WIDTH);
 
+        // Hanya menambahkan tanggal di sebelah kanan "Banda Aceh,".
         $tanggalCetak = Carbon::now()->locale('id')->translatedFormat('d F Y');
         $pdf->SetFont($fontName, '', self::FIELD_SIZE, '', false);
         $pdf->Text(self::PRINT_DATE_X, self::PRINT_DATE_Y, $tanggalCetak);
@@ -97,7 +96,7 @@ class CardPdfServiceFixed
             $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
         }
 
-        // Overlay resmi diletakkan setelah foto agar benar-benar tampil di atas foto.
+        // Jangan ubah lagi: stempel dan tanda tangan memakai aset + koordinat yang sudah ditetapkan.
         $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H);
         $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H);
 
@@ -106,40 +105,44 @@ class CardPdfServiceFixed
         return $outputPath;
     }
 
-    private function ensureFranklinGothicFont(string $template): string
+    private function ensureFranklinGothicMedium(): string
     {
-        $cacheDir = storage_path('app/tcpdf-fonts');
-        if (! is_dir($cacheDir) && ! mkdir($cacheDir, 0777, true) && ! is_dir($cacheDir)) {
-            throw new RuntimeException('Folder cache font TCPDF tidak dapat dibuat.');
+        // TCPDF_FONTS bukan otomatis ter-load pada semua instalasi TCPDF.
+        // Load class-nya secara eksplisit supaya tidak muncul
+        // "Class TCPDF_FONTS not found".
+        $tcpdfFontsFile = base_path('vendor/tecnickcom/tcpdf/include/tcpdf_fonts.php');
+        if (! class_exists('TCPDF_FONTS')) {
+            if (! is_file($tcpdfFontsFile)) {
+                throw new RuntimeException('File TCPDF_FONTS tidak ditemukan. Jalankan composer install/update terlebih dahulu.');
+            }
+            require_once $tcpdfFontsFile;
+        }
+
+        $fontDir = storage_path('app/fonts');
+        if (! is_dir($fontDir) && ! mkdir($fontDir, 0777, true) && ! is_dir($fontDir)) {
+            throw new RuntimeException('Folder font tidak dapat dibuat: ' . $fontDir);
+        }
+
+        // Font ini harus disediakan oleh administrator aplikasi karena merupakan font berlisensi.
+        $fontTtf = $fontDir . DIRECTORY_SEPARATOR . 'FranklinGothic-Medium.ttf';
+        if (! is_file($fontTtf)) {
+            throw new RuntimeException('Font FranklinGothic-Medium.ttf belum tersedia di storage/app/fonts/.');
         }
 
         if (! defined('K_PATH_FONTS')) {
-            define('K_PATH_FONTS', rtrim($cacheDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR);
+            define('K_PATH_FONTS', rtrim($fontDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR);
         }
 
-        $cacheKey = substr(sha1_file($template), 0, 16);
-        $fontTtf = $cacheDir . DIRECTORY_SEPARATOR . 'FranklinGothic-Medium-' . $cacheKey . '.ttf';
+        $fontName = 'franklin_gothic_medium';
+        $definition = $fontDir . DIRECTORY_SEPARATOR . $fontName . '.php';
 
-        if (! is_file($fontTtf) || filesize($fontTtf) < 1024) {
-            $fontBytes = $this->extractEmbeddedFontFromPdf($template);
-            if ($fontBytes === null) {
-                throw new RuntimeException('Font Franklin Gothic Medium tidak dapat diambil dari template PDF.');
-            }
-            if (file_put_contents($fontTtf, $fontBytes) === false) {
-                throw new RuntimeException('Font sementara tidak dapat ditulis.');
-            }
-        }
-
-        $fontName = 'franklin_gothic_medium_' . $cacheKey;
-        $definitionFile = $cacheDir . DIRECTORY_SEPARATOR . strtolower($fontName) . '.php';
-
-        if (! is_file($definitionFile)) {
-            $converted = TCPDF_FONTS::addTTFfont(
+        if (! is_file($definition)) {
+            $converted = \TCPDF_FONTS::addTTFfont(
                 $fontTtf,
                 'TrueTypeUnicode',
                 '',
                 32,
-                $cacheDir,
+                $fontDir,
                 3,
                 1,
                 false,
@@ -147,52 +150,13 @@ class CardPdfServiceFixed
             );
 
             if ($converted === false) {
-                throw new RuntimeException('TCPDF gagal menyiapkan font Franklin Gothic Medium.');
+                throw new RuntimeException('TCPDF gagal mendaftarkan Franklin Gothic Medium.');
             }
 
             $fontName = $converted;
         }
 
         return $fontName;
-    }
-
-    private function extractEmbeddedFontFromPdf(string $pdfPath): ?string
-    {
-        $pdf = @file_get_contents($pdfPath);
-        if ($pdf === false || $pdf === '') {
-            return null;
-        }
-
-        if (! preg_match('/\/FontName\s*\/[^^\s\/]*\+FranklinGothic-Medium\b(.*?)\/FontFile2\s+(\d+)\s+0\s+R/s', $pdf, $fontMatch)) {
-            return null;
-        }
-
-        $fontObjectNumber = (int) $fontMatch[2];
-
-        if (! preg_match('/\b' . $fontObjectNumber . '\s+0\s+obj\s*<<(.*?)>>\s*stream\r?\n/s', $pdf, $objectMatch, PREG_OFFSET_CAPTURE)) {
-            return null;
-        }
-
-        $dictionary = $objectMatch[1][0];
-        $streamStart = $objectMatch[0][1] + strlen($objectMatch[0][0]);
-
-        if (! preg_match('/\/Length\s+(\d+)/', $dictionary, $lengthMatch)) {
-            return null;
-        }
-
-        $length = (int) $lengthMatch[1];
-        if ($length <= 0) {
-            return null;
-        }
-
-        $compressed = substr($pdf, $streamStart, $length);
-        $font = str_contains($dictionary, '/FlateDecode') ? @gzuncompress($compressed) : $compressed;
-
-        if (! is_string($font) || ! str_starts_with($font, "\x00\x01\x00\x00")) {
-            return null;
-        }
-
-        return $font;
     }
 
     private function values(Card $card): array
