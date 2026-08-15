@@ -39,7 +39,6 @@ class WordDownloadControllerFixed extends Controller
             '${tgl_lahir}' => $tanggalLahir,
             '${alamat}' => $alamat !== '' ? $alamat : '-',
             '${jenis_kelamin}' => (string) ($card->jenis_kelamin ?? '-'),
-            '${foto}' => '',
         ];
 
         $directory = storage_path('app/public/card_exports');
@@ -75,14 +74,28 @@ class WordDownloadControllerFixed extends Controller
             throw new RuntimeException('Struktur XML template Word tidak lengkap.');
         }
 
-        // Isi teks langsung pada XML. Kita sengaja tidak memakai TemplateProcessor
-        // karena ia dapat menulis ulang shape WPS dan membuat file rusak.
-        foreach ($values as $placeholder => $value) {
-            $escaped = htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
-            $documentXml = str_replace($placeholder, $escaped, $documentXml);
-        }
+        $photoBytes = null;
+        $mediaPath = null;
+        $newRelsXml = $relsXml;
 
+        // Cari Rectangle 6 SEBELUM ${foto} diganti menjadi kosong.
         if ($photoPath) {
+            $fotoPos = strpos($documentXml, '${foto}');
+            if ($fotoPos === false) {
+                $source->close();
+                throw new RuntimeException('Placeholder ${foto} tidak ditemukan pada template Word asli.');
+            }
+
+            $shapeStart = strrpos(substr($documentXml, 0, $fotoPos), '<wps:wsp');
+            $shapeEnd = strpos($documentXml, '</wps:wsp>', $fotoPos);
+            if ($shapeStart === false || $shapeEnd === false) {
+                $source->close();
+                throw new RuntimeException('Rectangle 6 untuk foto tidak ditemukan pada template Word.');
+            }
+
+            $shapeEnd += strlen('</wps:wsp>');
+            $shapeXml = substr($documentXml, $shapeStart, $shapeEnd - $shapeStart);
+
             $photoBytes = @file_get_contents($photoPath);
             if ($photoBytes === false || $photoBytes === '') {
                 $source->close();
@@ -97,41 +110,11 @@ class WordDownloadControllerFixed extends Controller
             };
             $mediaPath = 'word/media/sipena_photo.' . $extension;
 
-            // Cari Rectangle 6 yang memang menjadi kotak ${foto} pada DOCX asli.
-            $fotoPos = strpos($documentXml, '${foto}');
-            if ($fotoPos === false) {
-                // Placeholder mungkin sudah diubah menjadi kosong pada loop di atas.
-                $fotoPos = strpos($documentXml, '<w:t></w:t>');
-            }
-
-            $searchLimit = $fotoPos !== false ? $fotoPos : strlen($documentXml);
-            $shapeStart = strrpos(substr($documentXml, 0, $searchLimit), '<wps:wsp');
-            $shapeEnd = $fotoPos !== false ? strpos($documentXml, '</wps:wsp>', $fotoPos) : false;
-
-            if ($shapeStart === false || $shapeEnd === false) {
-                // Karena placeholder sudah diganti, cari shape Rectangle 6 berdasarkan docPr.
-                $shapeMarker = 'name="Rectangle 6"';
-                $markerPos = strpos($documentXml, $shapeMarker);
-                if ($markerPos !== false) {
-                    $shapeStart = strrpos(substr($documentXml, 0, $markerPos), '<wps:wsp');
-                    $shapeEnd = strpos($documentXml, '</wps:wsp>', $markerPos);
-                }
-            }
-
-            if ($shapeStart === false || $shapeEnd === false) {
-                $source->close();
-                throw new RuntimeException('Rectangle 6 untuk foto tidak ditemukan pada template Word.');
-            }
-
-            $shapeEnd += strlen('</wps:wsp>');
-            $shapeXml = substr($documentXml, $shapeStart, $shapeEnd - $shapeStart);
-
             $rId = $this->nextRelationshipId($relsXml);
             $relationship = '<Relationship Id="' . $rId . '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/sipena_photo.' . $extension . '"/>';
             $newRelsXml = preg_replace('/<\/Relationships>/', $relationship . '</Relationships>', $relsXml, 1);
 
-            // WPS shape support: isi Rectangle 6 dengan gambar tanpa mengubah
-            // ukuran/posisi shape asli (779145 x 866140 EMU).
+            // Gambar mengisi Rectangle 6 dengan ukuran shape Word asli.
             $blipFill = '<a:blipFill><a:blip r:embed="' . $rId . '"/><a:stretch><a:fillRect/></a:stretch></a:blipFill>';
             $newShapeXml = preg_replace(
                 '/(<wps:spPr\b[^>]*>.*?)(?:<a:noFill\s*\/?>)/s',
@@ -145,10 +128,18 @@ class WordDownloadControllerFixed extends Controller
                 throw new RuntimeException('Rectangle 6 tidak dapat diisi dengan foto.');
             }
 
-            // Placeholder sudah diganti menjadi kosong oleh loop di atas.
+            $newShapeXml = str_replace('${foto}', '', $newShapeXml);
             $documentXml = substr($documentXml, 0, $shapeStart)
                 . $newShapeXml
                 . substr($documentXml, $shapeEnd);
+        } else {
+            $documentXml = str_replace('${foto}', '', $documentXml);
+        }
+
+        // Isi teks langsung pada XML; TemplateProcessor tidak dipakai agar Word shape tidak rusak.
+        foreach ($values as $placeholder => $value) {
+            $escaped = htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+            $documentXml = str_replace($placeholder, $escaped, $documentXml);
         }
 
         $target = new \ZipArchive();
@@ -166,7 +157,7 @@ class WordDownloadControllerFixed extends Controller
             $name = $stat['name'];
             if ($name === 'word/document.xml') {
                 $target->addFromString($name, $documentXml);
-            } elseif ($name === 'word/_rels/document.xml.rels' && isset($newRelsXml)) {
+            } elseif ($name === 'word/_rels/document.xml.rels') {
                 $target->addFromString($name, $newRelsXml);
             } else {
                 $bytes = $source->getFromIndex($i);
@@ -176,7 +167,7 @@ class WordDownloadControllerFixed extends Controller
             }
         }
 
-        if (isset($photoBytes, $mediaPath)) {
+        if ($photoBytes !== null && $mediaPath !== null) {
             $target->addFromString($mediaPath, $photoBytes);
         }
 
