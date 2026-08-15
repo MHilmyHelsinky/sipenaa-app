@@ -4,9 +4,9 @@ namespace App\Services;
 
 use App\Models\Card;
 use FPDF;
-use setasign\Fpdi\Fpdi;
-use RuntimeException;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
+use setasign\Fpdi\Fpdi;
 
 class CardPdfService
 {
@@ -29,7 +29,8 @@ class CardPdfService
             throw new RuntimeException('Folder PDF tidak dapat dibuat: ' . $outputDir);
         }
 
-        $filename = 'kartu_' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.pdf';
+        $safeName = preg_replace('/[^A-Za-z0-9_-]+/', '-', $card->nama_lengkap ?: 'siswa') ?: 'siswa';
+        $filename = 'kartu_' . $safeName . '_' . ($card->nisn ?: 'card') . '.pdf';
         $outputPath = $outputDir . DIRECTORY_SEPARATOR . $filename;
 
         $pdf = new Fpdi('P', 'pt', [self::PAGE_WIDTH, self::PAGE_HEIGHT]);
@@ -37,8 +38,7 @@ class CardPdfService
         $pdf->SetMargins(0, 0, 0);
         $pdf->SetCompression(true);
 
-        $pageCount = $pdf->setSourceFile($template);
-        if ($pageCount < 1) {
+        if ($pdf->setSourceFile($template) < 1) {
             throw new RuntimeException('Template PDF tidak memiliki halaman.');
         }
 
@@ -46,28 +46,24 @@ class CardPdfService
         $pdf->AddPage('P', [self::PAGE_WIDTH, self::PAGE_HEIGHT]);
         $pdf->useTemplate($templatePage, 0, 0, self::PAGE_WIDTH, self::PAGE_HEIGHT, true);
 
-        // Menutup hanya placeholder dinamis pada PDF asli.
-        $this->coverPlaceholder($pdf, 100.8, 15.5, 100, 12.8);
-        $this->coverPlaceholder($pdf, 100.8, 26.3, 100, 12.8);
-        $this->coverPlaceholder($pdf, 100.8, 37.1, 100, 12.8);
-        $this->coverPlaceholder($pdf, 100.8, 47.9, 100, 12.8);
-        $this->coverPlaceholder($pdf, 100.8, 58.6, 105, 12.8);
-        $this->coverPlaceholder($pdf, 100.0, 69.5, 105, 12.8);
+        // Hanya menutup teks placeholder. Ukuran berdasarkan bounding-box teks dari PDF asli.
+        $this->coverPlaceholder($pdf, 101.0, 15.4, 70.0, 12.6);
+        $this->coverPlaceholder($pdf, 101.0, 26.2, 70.0, 12.6);
+        $this->coverPlaceholder($pdf, 101.0, 37.0, 70.0, 12.6);
+        $this->coverPlaceholder($pdf, 101.0, 47.8, 70.0, 12.6);
+        $this->coverPlaceholder($pdf, 101.0, 58.5, 70.0, 12.6);
+        $this->coverPlaceholder($pdf, 100.0, 69.4, 72.0, 12.6);
 
-        // Placeholder foto berada di shape Rectangle 6 pada DOCX: 61.35 x 68.20 pt.
+        // Rectangle 6 pada DOCX: 779145 x 866140 EMU = 61.35 x 68.20 pt.
         $this->coverPlaceholder($pdf, 20.8, 85.2, 62.0, 70.0);
 
-        $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetFont('Arial', 'B', 9.5);
-
         $values = $this->values($card);
-
-        $this->writeFitted($pdf, $values['nisn'], 102.5, 24.8, 145, 9.5);
-        $this->writeFitted($pdf, $values['nama'], 102.5, 35.6, 145, 9.5);
-        $this->writeFitted($pdf, $values['tempat_lahir'], 102.5, 46.4, 170, 9.5);
-        $this->writeFitted($pdf, $values['tgl_lahir'], 102.5, 57.2, 145, 9.5);
-        $this->writeFitted($pdf, $values['alamat'], 102.5, 67.9, 160, 9.5);
-        $this->writeFitted($pdf, $values['jenis_kelamin'], 102.5, 78.7, 160, 9.5);
+        $this->writeFitted($pdf, $values['nisn'], 102.5, 24.8, 68.0, 9.5);
+        $this->writeFitted($pdf, $values['nama'], 102.5, 35.6, 68.0, 9.5);
+        $this->writeFitted($pdf, $values['tempat_lahir'], 102.5, 46.4, 68.0, 9.5);
+        $this->writeFitted($pdf, $values['tgl_lahir'], 102.5, 57.2, 68.0, 9.5);
+        $this->writeFitted($pdf, $values['alamat'], 102.5, 67.9, 68.0, 9.5);
+        $this->writeFitted($pdf, $values['jenis_kelamin'], 102.5, 78.7, 68.0, 9.5);
 
         $photo = $this->photoPath($card);
         if ($photo) {
@@ -120,14 +116,13 @@ class CardPdfService
             return;
         }
 
-        $size = min($size, 9.5);
-        while ($size >= 7.0) {
-            $pdf->SetFont('Arial', 'B', $size);
-            if ($pdf->GetStringWidth($this->latin1($text)) <= $maxWidth) {
-                $pdf->Text($x, $baselineY, $this->latin1($text));
+        for ($current = min($size, 9.5); $current >= 7.0; $current -= 0.25) {
+            $pdf->SetFont('Arial', 'B', $current);
+            $value = $this->latin1($text);
+            if ($pdf->GetStringWidth($value) <= $maxWidth) {
+                $pdf->Text($x, $baselineY, $value);
                 return;
             }
-            $size -= 0.25;
         }
 
         $pdf->SetFont('Arial', 'B', 7.0);
