@@ -13,31 +13,35 @@ class CardPdfServiceFixed
     private const PAGE_WIDTH = 567.0;
     private const PAGE_HEIGHT = 850.56;
 
-    // Koordinat disetel berdasarkan screenshot referensi kedua.
+    // Posisi mengikuti kartu referensi kedua.
     private const PHOTO_X = 29.50;
     private const PHOTO_Y = 100.00;
-    private const PHOTO_W = 47.50;
-    private const PHOTO_H = 43.00;
+    private const PHOTO_W = 49.00;
+    private const PHOTO_H = 58.00;
 
-    // Stempel berada di bagian kanan-atas foto seperti referensi kedua.
-    private const STAMP_X = 76.50;
-    private const STAMP_Y = 100.00;
-    private const STAMP_W = 56.00;
-    private const STAMP_H = 56.00;
+    // Stempel berada di kanan-atas foto, tidak menutupi blok kepala dinas.
+    private const STAMP_X = 77.00;
+    private const STAMP_Y = 102.00;
+    private const STAMP_W = 45.00;
+    private const STAMP_H = 45.00;
 
-    // Tanda tangan memanjang ke kanan dari area stempel/foto.
-    private const SIGN_X = 145.00;
-    private const SIGN_Y = 151.00;
-    private const SIGN_W = 60.00;
-    private const SIGN_H = 26.00;
+    // Tanda tangan berada di kanan/bawah stempel dan tetap di atas area foto/pejabat.
+    private const SIGN_X = 140.00;
+    private const SIGN_Y = 124.00;
+    private const SIGN_W = 48.00;
+    private const SIGN_H = 24.00;
 
     private const FIELD_X = 102.50;
     private const FIELD_SIZE = 9.5;
     private const FIELD_MAX_WIDTH = 118.00;
 
-    // "Banda Aceh," tetap berasal dari template; tanggal cetak ditambahkan di sebelah kanannya.
-    private const PRINT_DATE_X = 150.00;
-    private const PRINT_DATE_Y = 89.00;
+    // Baris tanggal asli pada template ditutup dulu agar tidak muncul dua tanggal.
+    private const DATE_COVER_X = 112.00;
+    private const DATE_COVER_Y = 84.00;
+    private const DATE_COVER_W = 160.00;
+    private const DATE_COVER_H = 12.00;
+    private const DATE_X = 116.00;
+    private const DATE_Y = 93.00;
 
     public function render(Card $card): string
     {
@@ -79,7 +83,7 @@ class CardPdfServiceFixed
         $fontName = $this->resolveFont($pdf);
         $values = $this->values($card);
 
-        // Nilai dinamis mengikuti posisi referensi kedua dan tetap 9.5 pt.
+        // Field data: Franklin Gothic Medium 9.5 pt bila tersedia.
         $this->writeFitted($pdf, $fontName, $values['nisn'], self::FIELD_X, 22.70, self::FIELD_MAX_WIDTH);
         $this->writeFitted($pdf, $fontName, $values['nama'], self::FIELD_X, 32.00, self::FIELD_MAX_WIDTH);
         $this->writeFitted($pdf, $fontName, $values['tempat_lahir'], self::FIELD_X, 42.80, self::FIELD_MAX_WIDTH);
@@ -87,15 +91,20 @@ class CardPdfServiceFixed
         $this->writeFitted($pdf, $fontName, $values['alamat'], self::FIELD_X, 63.50, self::FIELD_MAX_WIDTH);
         $this->writeFitted($pdf, $fontName, $values['jenis_kelamin'], self::FIELD_X, 75.00, self::FIELD_MAX_WIDTH);
 
+        // Template PDF sudah memiliki baris "Banda Aceh, ...". Tutup hanya baris itu,
+        // lalu tulis ulang satu kali dengan tanggal saat kartu dicetak.
+        $pdf->SetFillColor(255, 255, 255);
+        $pdf->Rect(self::DATE_COVER_X, self::DATE_COVER_Y, self::DATE_COVER_W, self::DATE_COVER_H, 'F');
         $pdf->SetFont($fontName, '', self::FIELD_SIZE);
-        $pdf->Text(self::PRINT_DATE_X, self::PRINT_DATE_Y, Carbon::now()->locale('id')->translatedFormat('d F Y'));
+        $pdf->Text(self::DATE_X, self::DATE_Y, 'Banda Aceh, ' . Carbon::now()->locale('id')->translatedFormat('d F Y'));
 
+        // Foto.
         $photo = $this->photoPath($card);
         if ($photo) {
             $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
         }
 
-        // Overlay resmi mengikuti referensi kedua dan tetap berada di atas foto.
+        // Overlay resmi diletakkan setelah foto agar berada di atas foto.
         $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H);
         $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H);
 
