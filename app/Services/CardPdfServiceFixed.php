@@ -33,7 +33,6 @@ class CardPdfServiceFixed
     private const FIELD_SIZE = 9.5;
     private const FIELD_MAX_WIDTH = 118.00;
 
-    // Tanggal cetak diletakkan di samping teks "Banda Aceh," yang sudah ada di template.
     private const PRINT_DATE_X = 139.0;
     private const PRINT_DATE_Y = 93.20;
 
@@ -85,7 +84,6 @@ class CardPdfServiceFixed
         $this->writeFitted($pdf, $fontName, $values['alamat'], self::FIELD_X, 68.20, self::FIELD_MAX_WIDTH);
         $this->writeFitted($pdf, $fontName, $values['jenis_kelamin'], self::FIELD_X, 79.00, self::FIELD_MAX_WIDTH);
 
-        // Hanya menambahkan tanggal di sebelah kanan "Banda Aceh,".
         $tanggalCetak = Carbon::now()->locale('id')->translatedFormat('d F Y');
         $pdf->SetFont($fontName, '', self::FIELD_SIZE, '', false);
         $pdf->Text(self::PRINT_DATE_X, self::PRINT_DATE_Y, $tanggalCetak);
@@ -95,7 +93,7 @@ class CardPdfServiceFixed
             $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
         }
 
-        // Stempel dan tanda tangan tetap sama; hanya font yang diperbaiki.
+        // Jangan mengubah posisi/aset stempel dan tanda tangan saat memperbaiki font.
         $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H);
         $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H);
 
@@ -105,12 +103,10 @@ class CardPdfServiceFixed
 
     private function ensureFranklinGothicMedium(string $template): string
     {
-        $tcpdfFontsFile = base_path('vendor/tecnickcom/tcpdf/include/tcpdf_fonts.php');
+        // TCPDF 7 memakai tc-lib-pdf-font. Jangan override K_PATH_FONTS ke folder aplikasi,
+        // karena TCPDF juga mencari font core seperti helvetica.json di sana.
         if (! class_exists('TCPDF_FONTS')) {
-            if (! is_file($tcpdfFontsFile)) {
-                throw new RuntimeException('TCPDF_FONTS tidak ditemukan. Jalankan composer install.');
-            }
-            require_once $tcpdfFontsFile;
+            throw new RuntimeException('TCPDF_FONTS tidak tersedia. Jalankan composer install/update.');
         }
 
         $cacheDir = storage_path('app/tcpdf-fonts');
@@ -118,47 +114,46 @@ class CardPdfServiceFixed
             throw new RuntimeException('Folder cache font TCPDF tidak dapat dibuat.');
         }
 
-        if (! defined('K_PATH_FONTS')) {
-            define('K_PATH_FONTS', rtrim($cacheDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR);
-        }
-
         $cacheKey = substr(sha1_file($template), 0, 16);
         $fontTtf = $cacheDir . DIRECTORY_SEPARATOR . 'FranklinGothic-Medium-' . $cacheKey . '.ttf';
         $fontName = 'franklin_gothic_medium_' . $cacheKey;
-        $definitionFile = $cacheDir . DIRECTORY_SEPARATOR . $fontName . '.php';
+        $definitionFile = $cacheDir . DIRECTORY_SEPARATOR . strtolower($fontName) . '.php';
 
-        // Ambil font Franklin Gothic Medium yang sudah tertanam di template PDF.
-        // Jadi server tidak perlu Microsoft Office, LibreOffice, atau file font terpisah.
         if (! is_file($fontTtf) || filesize($fontTtf) < 1024) {
             $fontBytes = $this->extractFranklinFontFromPdf($template);
-            if ($fontBytes === null) {
-                throw new RuntimeException('Font Franklin Gothic Medium tidak ditemukan di dalam template PDF.');
-            }
-            if (file_put_contents($fontTtf, $fontBytes) === false) {
-                throw new RuntimeException('Font Franklin Gothic Medium gagal disimpan ke cache.');
+            if ($fontBytes !== null) {
+                @file_put_contents($fontTtf, $fontBytes);
             }
         }
 
-        if (! is_file($definitionFile)) {
-            $converted = \TCPDF_FONTS::addTTFfont(
-                $fontTtf,
-                'TrueTypeUnicode',
-                '',
-                32,
-                $cacheDir,
-                3,
-                1,
-                false,
-                false
-            );
+        if (is_file($fontTtf) && filesize($fontTtf) >= 1024) {
+            try {
+                if (! is_file($definitionFile)) {
+                    $converted = \TCPDF_FONTS::addTTFfont(
+                        $fontTtf,
+                        'TrueTypeUnicode',
+                        '',
+                        32,
+                        $cacheDir,
+                        3,
+                        1,
+                        false,
+                        false
+                    );
 
-            if ($converted === false) {
-                throw new RuntimeException('TCPDF gagal mendaftarkan Franklin Gothic Medium.');
+                    if ($converted !== false) {
+                        $fontName = $converted;
+                    }
+                }
+
+                return $fontName;
+            } catch (\Throwable) {
+                // Fall through to the vendor TCPDF core font.
             }
-            $fontName = $converted;
         }
 
-        return $fontName;
+        // Fallback memakai font core TCPDF dari vendor, bukan dari storage/app/tcpdf-fonts.
+        return 'helvetica';
     }
 
     private function extractFranklinFontFromPdf(string $pdfPath): ?string
@@ -196,9 +191,7 @@ class CardPdfServiceFixed
             return null;
         }
 
-        $font = str_contains($dictionary, '/FlateDecode')
-            ? @gzuncompress($rawStream)
-            : $rawStream;
+        $font = str_contains($dictionary, '/FlateDecode') ? @gzuncompress($rawStream) : $rawStream;
 
         if (! is_string($font) || ! str_starts_with($font, "\x00\x01\x00\x00")) {
             return null;
