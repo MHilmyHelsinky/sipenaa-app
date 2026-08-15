@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Card;
 use App\Models\User;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\CardPdfService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -12,9 +12,14 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use PhpOffice\PhpWord\TemplateProcessor;
+use RuntimeException;
 
 class DashboardController extends Controller
 {
+    public function __construct(private readonly CardPdfService $cardPdfService)
+    {
+    }
+
     protected function authorizeSuperAdmin(): void
     {
         abort_if(Auth::user()?->role !== 'super_admin', 403);
@@ -161,39 +166,6 @@ class DashboardController extends Controller
         return $path;
     }
 
-    protected function getPhotoDataUri(Card $card): ?string
-    {
-        if (! $card->foto_path || ! Storage::disk('public')->exists($card->foto_path)) {
-            return null;
-        }
-
-        $photoPath = Storage::disk('public')->path($card->foto_path);
-        $mime = mime_content_type($photoPath) ?: 'image/jpeg';
-
-        return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($photoPath));
-    }
-
-    protected function getTemplateBackgroundDataUri(): string
-    {
-        $path = public_path('images/merge_nisn_2020_template.png');
-
-        if (! is_file($path)) {
-            abort(500, 'Template PDF background belum tersedia. Salin merge_nisn_2020_template.png ke public/images/.');
-        }
-
-        return 'data:image/png;base64,' . base64_encode(file_get_contents($path));
-    }
-
-    protected function pdfViewData(Card $card): array
-    {
-        return [
-            'card' => $card,
-            'templateValues' => $this->getTemplateValues($card),
-            'photoDataUri' => $this->getPhotoDataUri($card),
-            'templateBackgroundDataUri' => $this->getTemplateBackgroundDataUri(),
-        ];
-    }
-
     public function previewKartu(Card $card): View
     {
         return view('preview-kartu', ['card' => $card]);
@@ -201,20 +173,32 @@ class DashboardController extends Controller
 
     public function previewPdf(Card $card)
     {
+        $path = $this->renderPdf($card);
         $filename = 'kartu_' . Str::slug($card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.pdf';
 
-        return Pdf::loadView('card-pdf', $this->pdfViewData($card))
-            ->setPaper([0, 0, 567, 850.56])
-            ->stream($filename);
+        return response()->file($path, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
     }
 
     public function downloadPdf(Card $card)
     {
+        $path = $this->renderPdf($card);
         $filename = 'kartu_' . Str::slug($card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.pdf';
 
-        return Pdf::loadView('card-pdf', $this->pdfViewData($card))
-            ->setPaper([0, 0, 567, 850.56])
-            ->download($filename);
+        return response()->download($path, $filename, [
+            'Content-Type' => 'application/pdf',
+        ])->deleteFileAfterSend(true);
+    }
+
+    protected function renderPdf(Card $card): string
+    {
+        try {
+            return $this->cardPdfService->render($card);
+        } catch (RuntimeException $e) {
+            abort(500, $e->getMessage());
+        }
     }
 
     public function downloadWord(Card $card)
