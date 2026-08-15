@@ -4,19 +4,21 @@ namespace App\Http\Controllers;
 
 use App\Models\Card;
 use App\Models\User;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\OfficeDocumentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
-use PhpOffice\PhpWord\IOFactory;
-use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\TemplateProcessor;
 
 class DashboardController extends Controller
 {
+    public function __construct(private readonly OfficeDocumentService $officeDocumentService)
+    {
+    }
+
     protected function authorizeSuperAdmin(): void
     {
         abort_if(Auth::user()?->role !== 'super_admin', 403);
@@ -144,30 +146,23 @@ class DashboardController extends Controller
         $values = $this->getTemplateValues($card);
 
         foreach ($values as $key => $value) {
-            $variants = [$key, '$' . $key, '${' . $key . '}'];
-
             if ($key === 'foto') {
                 if ($value) {
-                    foreach ($variants as $variant) {
-                        $processor->setImageValue($variant, [
-                            'path' => $value,
-                            'width' => 150,
-                            'height' => 180,
-                            'ratio' => true,
-                        ]);
-                    }
+                    $processor->setImageValue('${foto}', [
+                        'path' => $value,
+                        // Ukuran mengikuti kotak ${foto} pada template Word asli.
+                        'width' => 82,
+                        'height' => 91,
+                        'ratio' => false,
+                    ]);
                 } else {
-                    foreach ($variants as $variant) {
-                        $processor->setValue($variant, '');
-                    }
+                    $processor->setValue('${foto}', '');
                 }
 
                 continue;
             }
 
-            foreach ($variants as $variant) {
-                $processor->setValue($variant, (string) $value);
-            }
+            $processor->setValue('${' . $key . '}', (string) $value);
         }
 
         $directory = storage_path('app/public/card_exports');
@@ -182,32 +177,39 @@ class DashboardController extends Controller
         return $path;
     }
 
+    protected function generatePdfDocument(Card $card): string
+    {
+        $docxPath = $this->generateTemplateDocument($card);
+        $pdfDirectory = storage_path('app/public/card_exports/pdf');
+
+        return $this->officeDocumentService->convertDocxToPdf($docxPath, $pdfDirectory);
+    }
+
     public function previewKartu(Card $card): View
     {
         return view('preview-kartu', [
             'card' => $card,
-            'templateValues' => $this->getTemplateValues($card),
+        ]);
+    }
+
+    public function previewPdf(Card $card)
+    {
+        $pdfPath = $this->generatePdfDocument($card);
+
+        return response()->file($pdfPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . basename($pdfPath) . '"',
         ]);
     }
 
     public function downloadPdf(Card $card)
     {
-        $photoDataUri = null;
-
-        if ($card->foto_path && Storage::disk('public')->exists($card->foto_path)) {
-            $photoPath = Storage::disk('public')->path($card->foto_path);
-            $photoDataUri = 'data:' . mime_content_type($photoPath) . ';base64,' . base64_encode(file_get_contents($photoPath));
-        }
-
+        $pdfPath = $this->generatePdfDocument($card);
         $filename = 'kartu_' . Str::slug($card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.pdf';
 
-        return Pdf::loadView('card-pdf', [
-            'card' => $card,
-            'photoDataUri' => $photoDataUri,
-            'templateValues' => $this->getTemplateValues($card),
-        ])
-            ->setPaper('A4', 'portrait')
-            ->download($filename);
+        return response()->download($pdfPath, $filename, [
+            'Content-Type' => 'application/pdf',
+        ])->deleteFileAfterSend(true);
     }
 
     public function downloadWord(Card $card)
