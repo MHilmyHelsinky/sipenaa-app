@@ -31,6 +31,10 @@ Route::get('/preview-kartu/{card}', [DashboardController::class, 'previewKartu']
     ->middleware(['auth'])
     ->name('preview.kartu');
 
+Route::get('/preview-kartu/{card}/pdf-preview', [DashboardController::class, 'previewPdf'])
+    ->middleware(['auth'])
+    ->name('preview.kartu.pdf');
+
 Route::get('/preview-kartu/{card}/download-pdf', [DashboardController::class, 'downloadPdf'])
     ->middleware(['auth'])
     ->name('preview.kartu.download.pdf');
