@@ -18,15 +18,16 @@ class CardPdfServiceFixed
     private const PHOTO_W = 61.35;
     private const PHOTO_H = 68.20;
 
-    private const STAMP_X = 78.50;
-    private const STAMP_Y = 87.20;
-    private const STAMP_W = 41.50;
-    private const STAMP_H = 42.00;
+    // Posisi/ukuran dikembalikan ke elemen asli dari template PDF.
+    private const STAMP_X = 80.50;
+    private const STAMP_Y = 85.65;
+    private const STAMP_W = 69.33;
+    private const STAMP_H = 70.35;
 
-    private const SIGN_X = 112.00;
-    private const SIGN_Y = 108.50;
-    private const SIGN_W = 48.00;
-    private const SIGN_H = 23.10;
+    private const SIGN_X = 143.45;
+    private const SIGN_Y = 105.05;
+    private const SIGN_W = 53.30;
+    private const SIGN_H = 32.50;
 
     private const FIELD_X = 102.50;
     private const FIELD_SIZE = 9.5;
@@ -72,7 +73,7 @@ class CardPdfServiceFixed
         $pdf->AddPage('P', [self::PAGE_WIDTH, self::PAGE_HEIGHT]);
         $pdf->useTemplate($templatePage, 0, 0, self::PAGE_WIDTH, self::PAGE_HEIGHT, true);
 
-        $fontName = $this->ensureFranklinGothicMedium();
+        $fontName = $this->resolveFont($pdf);
         $values = $this->values($card);
 
         $this->writeFitted($pdf, $fontName, $values['nisn'], self::FIELD_X, 25.10, self::FIELD_MAX_WIDTH);
@@ -82,16 +83,15 @@ class CardPdfServiceFixed
         $this->writeFitted($pdf, $fontName, $values['alamat'], self::FIELD_X, 68.20, self::FIELD_MAX_WIDTH);
         $this->writeFitted($pdf, $fontName, $values['jenis_kelamin'], self::FIELD_X, 79.00, self::FIELD_MAX_WIDTH);
 
-        $tanggalCetak = Carbon::now()->locale('id')->translatedFormat('d F Y');
         $pdf->SetFont($fontName, '', self::FIELD_SIZE);
-        $pdf->Text(self::PRINT_DATE_X, self::PRINT_DATE_Y, $tanggalCetak);
+        $pdf->Text(self::PRINT_DATE_X, self::PRINT_DATE_Y, Carbon::now()->locale('id')->translatedFormat('d F Y'));
 
         $photo = $this->photoPath($card);
         if ($photo) {
             $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
         }
 
-        // Posisi dan aset stempel/tanda tangan tidak diubah.
+        // Layer teratas: stempel dan tanda tangan.
         $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H);
         $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H);
 
@@ -99,66 +99,39 @@ class CardPdfServiceFixed
         return $outputPath;
     }
 
-    private function ensureFranklinGothicMedium(): string
+    private function resolveFont(Fpdi $pdf): string
     {
-        // Jangan lagi mengekstrak font dari PDF. Font yang sudah di-subset di PDF
-        // bukan file TTF yang aman untuk diproses ulang oleh TCPDF; itu yang memicu
-        // ErrorException "Undefined array key 120" pada tcpdf_fonts.php.
         $fontsClassFile = base_path('vendor/tecnickcom/tcpdf/include/tcpdf_fonts.php');
         if (! class_exists('TCPDF_FONTS') && is_file($fontsClassFile)) {
             require_once $fontsClassFile;
         }
 
-        if (! class_exists('TCPDF_FONTS')) {
-            throw new RuntimeException('TCPDF_FONTS tidak tersedia. Jalankan composer install.');
-        }
-
-        // Development Windows: gunakan font Franklin Gothic Medium yang sudah ada di Windows.
-        // Production server: salin file font ke storage/app/fonts/framd.ttf.
-        $candidates = [
+        // Font hanya dari file TTF nyata. Jangan mengekstraknya dari PDF karena itu
+        // merupakan subset/font program dan bukan TTF siap-daftar.
+        $candidates = array_filter([
+            config('sipena.franklin_font_path'),
             storage_path('app/fonts/framd.ttf'),
-            storage_path('app/fonts/Framd.TTF'),
+            storage_path('app/fonts/FranklinGothic-Medium.ttf'),
             'C:\\Windows\\Fonts\\framd.ttf',
-            'C:\\Windows\\Fonts\\Framd.TTF',
-        ];
+        ]);
 
-        $fontFile = null;
-        foreach ($candidates as $candidate) {
-            if (is_file($candidate)) {
-                $fontFile = $candidate;
-                break;
+        foreach ($candidates as $fontFile) {
+            if (! is_file($fontFile) || filesize($fontFile) < 1024) {
+                continue;
+            }
+
+            try {
+                $fontName = $pdf->addTTFfont($fontFile, 'TrueTypeUnicode', '', 32);
+                if ($fontName !== false) {
+                    return $fontName;
+                }
+            } catch (\Throwable) {
+                // coba kandidat berikutnya
             }
         }
 
-        if ($fontFile === null) {
-            // Jangan membuat preview gagal hanya karena font belum disediakan.
-            // Template tetap dirender dan semua overlay tetap bekerja.
-            return 'helvetica';
-        }
-
-        $fontName = 'franklin_gothic_medium';
-
-        try {
-            $converted = TCPDF_FONTS::addTTFfont(
-                $fontFile,
-                'TrueTypeUnicode',
-                '',
-                32,
-                storage_path('app/tcpdf-fonts'),
-                3,
-                1,
-                false,
-                false
-            );
-
-            if ($converted !== false) {
-                $fontName = $converted;
-            }
-        } catch (\Throwable) {
-            return 'helvetica';
-        }
-
-        return $fontName;
+        // Fallback aman. Preview tetap berjalan walau font Franklin belum disediakan.
+        return 'helvetica';
     }
 
     private function values(Card $card): array
