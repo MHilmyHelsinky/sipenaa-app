@@ -2,7 +2,7 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "laravel/laravel",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "The skeleton application for Laravel.",
     "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {
@@ -26,6 +26,9 @@
         "phpunit/phpunit": "^12.5.12"
     },
     "autoload": {
+        "files": [
+            "bootstrap/sipena_overrides.php"
+        ],
         "psr-4": {
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
