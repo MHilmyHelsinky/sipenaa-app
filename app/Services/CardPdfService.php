@@ -46,16 +46,10 @@ class CardPdfService
         $pdf->AddPage('P', [self::PAGE_WIDTH, self::PAGE_HEIGHT]);
         $pdf->useTemplate($templatePage, 0, 0, self::PAGE_WIDTH, self::PAGE_HEIGHT, true);
 
-        // Hanya menutup teks placeholder. Koordinat mengikuti template PDF asli.
-        $this->coverPlaceholder($pdf, 101.0, 15.4, 70.0, 12.6);
-        $this->coverPlaceholder($pdf, 101.0, 26.2, 70.0, 12.6);
-        $this->coverPlaceholder($pdf, 101.0, 37.0, 70.0, 12.6);
-        $this->coverPlaceholder($pdf, 101.0, 47.8, 70.0, 12.6);
-        $this->coverPlaceholder($pdf, 101.0, 58.5, 70.0, 12.6);
-        $this->coverPlaceholder($pdf, 100.0, 69.4, 72.0, 12.6);
-        $this->coverPlaceholder($pdf, 20.8, 85.2, 62.0, 70.0);
-
+        // Template PDF terbaru sudah bersih. Jangan menggambar kotak berwarna
+        // di belakang field karena akan terlihat sebagai highlight.
         $values = $this->values($card);
+
         $this->writeFitted($pdf, $values['nisn'], 102.5, 24.8, 68.0, 9.5);
         $this->writeFitted($pdf, $values['nama'], 102.5, 35.6, 68.0, 9.5);
         $this->writeFitted($pdf, $values['tempat_lahir'], 102.5, 46.4, 68.0, 9.5);
@@ -63,13 +57,13 @@ class CardPdfService
         $this->writeFitted($pdf, $values['alamat'], 102.5, 67.9, 68.0, 9.5);
         $this->writeFitted($pdf, $values['jenis_kelamin'], 102.5, 78.7, 68.0, 9.5);
 
-        // Foto berada di bawah overlay resmi.
+        // Foto mengikuti Rectangle 6 pada dokumen Word.
         $photo = $this->photoPath($card);
         if ($photo) {
             $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
         }
 
-        // Stempel dan tanda tangan transparan diletakkan DI ATAS foto.
+        // Stempel + tanda tangan transparan diletakkan DI ATAS foto.
         $overlay = storage_path('app/templates/photo_official_overlay.png');
         if (is_file($overlay)) {
             $pdf->Image($overlay, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
@@ -104,12 +98,6 @@ class CardPdfService
         }
 
         return Storage::disk('public')->path($card->foto_path);
-    }
-
-    private function coverPlaceholder(FPDF $pdf, float $x, float $y, float $w, float $h): void
-    {
-        $pdf->SetFillColor(103, 192, 222);
-        $pdf->Rect($x, $y, $w, $h, 'F');
     }
 
     private function writeFitted(FPDF $pdf, string $text, float $x, float $baselineY, float $maxWidth, float $size): void
