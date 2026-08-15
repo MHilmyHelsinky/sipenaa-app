@@ -72,7 +72,7 @@ class CardPdfServiceFixed
         $pdf->AddPage('P', [self::PAGE_WIDTH, self::PAGE_HEIGHT]);
         $pdf->useTemplate($templatePage, 0, 0, self::PAGE_WIDTH, self::PAGE_HEIGHT, true);
 
-        $fontName = $this->ensureFranklinGothicMedium($template);
+        $fontName = $this->ensureFranklinGothicMedium();
         $values = $this->values($card);
 
         $this->writeFitted($pdf, $fontName, $values['nisn'], self::FIELD_X, 25.10, self::FIELD_MAX_WIDTH);
@@ -91,7 +91,7 @@ class CardPdfServiceFixed
             $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
         }
 
-        // Posisi/aset stempel dan tanda tangan tidak diubah.
+        // Posisi dan aset stempel/tanda tangan tidak diubah.
         $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H);
         $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H);
 
@@ -99,107 +99,66 @@ class CardPdfServiceFixed
         return $outputPath;
     }
 
-    private function ensureFranklinGothicMedium(string $template): string
+    private function ensureFranklinGothicMedium(): string
     {
-        // Gunakan TCPDF 6.x untuk menjaga font core seperti Helvetica tetap tersedia
-        // tanpa tc-lib-pdf-font/helvetica.json generation.
+        // Jangan lagi mengekstrak font dari PDF. Font yang sudah di-subset di PDF
+        // bukan file TTF yang aman untuk diproses ulang oleh TCPDF; itu yang memicu
+        // ErrorException "Undefined array key 120" pada tcpdf_fonts.php.
         $fontsClassFile = base_path('vendor/tecnickcom/tcpdf/include/tcpdf_fonts.php');
-        if (! class_exists('TCPDF_FONTS')) {
-            if (! is_file($fontsClassFile)) {
-                throw new RuntimeException('TCPDF 6.x tidak lengkap. Jalankan composer install/update.');
-            }
+        if (! class_exists('TCPDF_FONTS') && is_file($fontsClassFile)) {
             require_once $fontsClassFile;
         }
 
-        $cacheDir = storage_path('app/tcpdf-fonts');
-        if (! is_dir($cacheDir) && ! mkdir($cacheDir, 0777, true) && ! is_dir($cacheDir)) {
-            throw new RuntimeException('Folder cache font TCPDF tidak dapat dibuat.');
+        if (! class_exists('TCPDF_FONTS')) {
+            throw new RuntimeException('TCPDF_FONTS tidak tersedia. Jalankan composer install.');
         }
 
-        // Legacy TCPDF uses K_PATH_FONTS for custom generated definitions.
-        if (! defined('K_PATH_FONTS')) {
-            define('K_PATH_FONTS', rtrim($cacheDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR);
-        }
+        // Development Windows: gunakan font Franklin Gothic Medium yang sudah ada di Windows.
+        // Production server: salin file font ke storage/app/fonts/framd.ttf.
+        $candidates = [
+            storage_path('app/fonts/framd.ttf'),
+            storage_path('app/fonts/Framd.TTF'),
+            'C:\\Windows\\Fonts\\framd.ttf',
+            'C:\\Windows\\Fonts\\Framd.TTF',
+        ];
 
-        $cacheKey = substr(sha1_file($template), 0, 16);
-        $fontTtf = $cacheDir . DIRECTORY_SEPARATOR . 'FranklinGothic-Medium-' . $cacheKey . '.ttf';
-        $fontName = 'franklin_gothic_medium_' . $cacheKey;
-
-        if (! is_file($fontTtf) || filesize($fontTtf) < 1024) {
-            $fontBytes = $this->extractFranklinFontFromPdf($template);
-            if ($fontBytes !== null) {
-                @file_put_contents($fontTtf, $fontBytes);
+        $fontFile = null;
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
+                $fontFile = $candidate;
+                break;
             }
         }
 
-        if (is_file($fontTtf) && filesize($fontTtf) >= 1024) {
-            $definition = $cacheDir . DIRECTORY_SEPARATOR . $fontName . '.php';
-            if (! is_file($definition)) {
-                $converted = \TCPDF_FONTS::addTTFfont(
-                    $fontTtf,
-                    'TrueTypeUnicode',
-                    '',
-                    32,
-                    $cacheDir,
-                    3,
-                    1,
-                    false,
-                    false
-                );
-                if ($converted !== false) {
-                    $fontName = $converted;
-                }
+        if ($fontFile === null) {
+            // Jangan membuat preview gagal hanya karena font belum disediakan.
+            // Template tetap dirender dan semua overlay tetap bekerja.
+            return 'helvetica';
+        }
+
+        $fontName = 'franklin_gothic_medium';
+
+        try {
+            $converted = TCPDF_FONTS::addTTFfont(
+                $fontFile,
+                'TrueTypeUnicode',
+                '',
+                32,
+                storage_path('app/tcpdf-fonts'),
+                3,
+                1,
+                false,
+                false
+            );
+
+            if ($converted !== false) {
+                $fontName = $converted;
             }
-
-            if (is_file($definition)) {
-                return $fontName;
-            }
+        } catch (\Throwable) {
+            return 'helvetica';
         }
 
-        // Legacy TCPDF has Helvetica as a built-in core font and does not need JSON font assets.
-        return 'helvetica';
-    }
-
-    private function extractFranklinFontFromPdf(string $pdfPath): ?string
-    {
-        $pdf = @file_get_contents($pdfPath);
-        if ($pdf === false || $pdf === '') {
-            return null;
-        }
-
-        if (! preg_match('/\/FontName\s*\/[^\s\/]*\+FranklinGothic-Medium\b.*?\/FontFile2\s+(\d+)\s+0\s+R/s', $pdf, $fontMatch)) {
-            return null;
-        }
-
-        $fontObjectNumber = (int) $fontMatch[1];
-        $objectPattern = '/\b' . $fontObjectNumber . '\s+0\s+obj\s*<<(.*?)>>\s*stream\r?\n/s';
-        if (! preg_match($objectPattern, $pdf, $objectMatch, PREG_OFFSET_CAPTURE)) {
-            return null;
-        }
-
-        $dictionary = $objectMatch[1][0];
-        $streamStart = $objectMatch[0][1] + strlen($objectMatch[0][0]);
-
-        if (! preg_match('/\/Length\s+(\d+)/', $dictionary, $lengthMatch)) {
-            return null;
-        }
-
-        $length = (int) $lengthMatch[1];
-        if ($length <= 0) {
-            return null;
-        }
-
-        $rawStream = substr($pdf, $streamStart, $length);
-        if ($rawStream === false) {
-            return null;
-        }
-
-        $font = str_contains($dictionary, '/FlateDecode') ? @gzuncompress($rawStream) : $rawStream;
-        if (! is_string($font) || ! str_starts_with($font, "\x00\x01\x00\x00")) {
-            return null;
-        }
-
-        return $font;
+        return $fontName;
     }
 
     private function values(Card $card): array
