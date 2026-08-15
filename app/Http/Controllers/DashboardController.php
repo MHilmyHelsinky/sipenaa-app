@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Card;
 use App\Models\User;
-use App\Services\OfficeDocumentService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -15,10 +15,6 @@ use PhpOffice\PhpWord\TemplateProcessor;
 
 class DashboardController extends Controller
 {
-    public function __construct(private readonly OfficeDocumentService $officeDocumentService)
-    {
-    }
-
     protected function authorizeSuperAdmin(): void
     {
         abort_if(Auth::user()?->role !== 'super_admin', 403);
@@ -42,20 +38,10 @@ class DashboardController extends Controller
         }
 
         $today = now();
-
         $totalPetugas = User::where('role', 'user')->count();
-        $inputToday = User::where('role', 'user')
-            ->whereDate('created_at', $today)
-            ->count();
-        $activeToday = User::where('role', 'user')
-            ->where('is_active', true)
-            ->whereDate('last_login_at', $today)
-            ->count();
-
-        $activeUsers = User::where('role', 'user')
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
+        $inputToday = User::where('role', 'user')->whereDate('created_at', $today)->count();
+        $activeToday = User::where('role', 'user')->where('is_active', true)->whereDate('last_login_at', $today)->count();
+        $activeUsers = User::where('role', 'user')->where('is_active', true)->orderBy('name')->get();
 
         return view('dashboard', [
             'totalPetugas' => $totalPetugas,
@@ -150,7 +136,6 @@ class DashboardController extends Controller
                 if ($value) {
                     $processor->setImageValue('${foto}', [
                         'path' => $value,
-                        // Ukuran mengikuti kotak ${foto} pada template Word asli.
                         'width' => 82,
                         'height' => 91,
                         'ratio' => false,
@@ -158,7 +143,6 @@ class DashboardController extends Controller
                 } else {
                     $processor->setValue('${foto}', '');
                 }
-
                 continue;
             }
 
@@ -177,39 +161,60 @@ class DashboardController extends Controller
         return $path;
     }
 
-    protected function generatePdfDocument(Card $card): string
+    protected function getPhotoDataUri(Card $card): ?string
     {
-        $docxPath = $this->generateTemplateDocument($card);
-        $pdfDirectory = storage_path('app/public/card_exports/pdf');
+        if (! $card->foto_path || ! Storage::disk('public')->exists($card->foto_path)) {
+            return null;
+        }
 
-        return $this->officeDocumentService->convertDocxToPdf($docxPath, $pdfDirectory);
+        $photoPath = Storage::disk('public')->path($card->foto_path);
+        $mime = mime_content_type($photoPath) ?: 'image/jpeg';
+
+        return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($photoPath));
+    }
+
+    protected function getTemplateBackgroundDataUri(): string
+    {
+        $path = public_path('images/merge_nisn_2020_template.png');
+
+        if (! is_file($path)) {
+            abort(500, 'Template PDF background belum tersedia. Salin merge_nisn_2020_template.png ke public/images/.');
+        }
+
+        return 'data:image/png;base64,' . base64_encode(file_get_contents($path));
+    }
+
+    protected function pdfViewData(Card $card): array
+    {
+        return [
+            'card' => $card,
+            'templateValues' => $this->getTemplateValues($card),
+            'photoDataUri' => $this->getPhotoDataUri($card),
+            'templateBackgroundDataUri' => $this->getTemplateBackgroundDataUri(),
+        ];
     }
 
     public function previewKartu(Card $card): View
     {
-        return view('preview-kartu', [
-            'card' => $card,
-        ]);
+        return view('preview-kartu', ['card' => $card]);
     }
 
     public function previewPdf(Card $card)
     {
-        $pdfPath = $this->generatePdfDocument($card);
+        $filename = 'kartu_' . Str::slug($card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.pdf';
 
-        return response()->file($pdfPath, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="' . basename($pdfPath) . '"',
-        ]);
+        return Pdf::loadView('card-pdf', $this->pdfViewData($card))
+            ->setPaper([0, 0, 567, 850.56])
+            ->stream($filename);
     }
 
     public function downloadPdf(Card $card)
     {
-        $pdfPath = $this->generatePdfDocument($card);
         $filename = 'kartu_' . Str::slug($card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.pdf';
 
-        return response()->download($pdfPath, $filename, [
-            'Content-Type' => 'application/pdf',
-        ])->deleteFileAfterSend(true);
+        return Pdf::loadView('card-pdf', $this->pdfViewData($card))
+            ->setPaper([0, 0, 567, 850.56])
+            ->download($filename);
     }
 
     public function downloadWord(Card $card)
@@ -224,9 +229,7 @@ class DashboardController extends Controller
 
     public function dataKartu(): View
     {
-        return view('data-kartu', [
-            'cards' => Card::latest()->get(),
-        ]);
+        return view('data-kartu', ['cards' => Card::latest()->get()]);
     }
 
     public function laporan(): View
@@ -237,14 +240,8 @@ class DashboardController extends Controller
     public function manageUsers(Request $request): View
     {
         $this->authorizeSuperAdmin();
-
-        $users = User::orderByRaw("role = 'super_admin' desc")
-            ->orderBy('name')
-            ->get();
-
-        return view('manajemen-pengguna', [
-            'users' => $users,
-        ]);
+        $users = User::orderByRaw("role = 'super_admin' desc")->orderBy('name')->get();
+        return view('manajemen-pengguna', ['users' => $users]);
     }
 
     protected function generateUniqueUsername(string $name): string
@@ -265,7 +262,6 @@ class DashboardController extends Controller
     public function storeUser(Request $request)
     {
         $this->authorizeSuperAdmin();
-
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'password' => ['required', 'confirmed', 'min:8'],
@@ -273,7 +269,6 @@ class DashboardController extends Controller
         ]);
 
         $username = $this->generateUniqueUsername($validated['name']);
-
         User::create([
             'name' => $validated['name'],
             'username' => $username,
@@ -288,18 +283,14 @@ class DashboardController extends Controller
     public function toggleUser(User $user)
     {
         $this->authorizeSuperAdmin();
-
         $user->update(['is_active' => ! $user->is_active]);
-
         return back()->with('success', 'Status akun berhasil diperbarui.');
     }
 
     public function destroyUser(User $user)
     {
         $this->authorizeSuperAdmin();
-
         $user->delete();
-
         return back()->with('success', 'Akun berhasil dihapus.');
     }
 }
