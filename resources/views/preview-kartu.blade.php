@@ -14,7 +14,6 @@
         .preview-panel { width: min(1200px, 100%); min-height: calc(100vh - 48px); margin: 0 auto; background: #fff; border-radius: 18px; box-shadow: 0 18px 45px rgba(15, 23, 42, .12); padding: 18px; display: flex; flex-direction: column; }
         .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
         .back-button, .word-btn, .pdf-btn { border-radius: 10px; padding: 10px 14px; text-decoration: none; border: 1px solid #d5dde7; background: #fff; color: #16324f; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-        .back-button { padding: 10px 13px; }
         .actions { display: flex; gap: 10px; }
         .pdf-btn { border-color: #1d4ed8; background: #1d4ed8; color: #fff; }
         .subtitle { text-align: center; color: #64748b; font-size: .9rem; margin-bottom: 12px; }
@@ -40,9 +39,7 @@
                     <a class="pdf-btn" href="{{ route('preview.kartu.download.pdf', ['card' => $card->id]) }}"><i class="fa-solid fa-file-pdf"></i> Download PDF</a>
                 </div>
             </div>
-
-            <div class="subtitle">Preview ini menampilkan PDF yang dibuat langsung dari template DOCX asli, sehingga tampilan preview dan hasil cetak menggunakan sumber yang sama.</div>
-
+            <div class="subtitle">Preview menggunakan template cetak yang sama dengan file PDF yang akan diunduh dan dicetak.</div>
             <div class="pdf-wrap">
                 <iframe
                     class="pdf-frame"
