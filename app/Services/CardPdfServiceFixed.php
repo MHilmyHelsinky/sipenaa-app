@@ -13,7 +13,6 @@ class CardPdfServiceFixed
     private const PAGE_WIDTH = 567.0;
     private const PAGE_HEIGHT = 850.56;
 
-    // Posisi foto/stempel/tanda tangan dipertahankan.
     private const PHOTO_X = 21.20;
     private const PHOTO_Y = 85.65;
     private const PHOTO_W = 61.35;
@@ -58,7 +57,7 @@ class CardPdfServiceFixed
         $filename = 'kartu_' . $safeName . '_' . ($card->nisn ?: 'card') . '.pdf';
         $outputPath = $outputDir . DIRECTORY_SEPARATOR . $filename;
 
-        $pdf = new Fpdi('P', 'pt', [self::PAGE_WIDTH, self::PAGE_HEIGHT], true, 'UTF-8');
+        $pdf = new Fpdi('P', 'pt', [self::PAGE_WIDTH, self::PAGE_HEIGHT]);
         $pdf->SetAutoPageBreak(false);
         $pdf->SetMargins(0, 0, 0);
         $pdf->setPrintHeader(false);
@@ -76,7 +75,6 @@ class CardPdfServiceFixed
         $fontName = $this->ensureFranklinGothicMedium($template);
         $values = $this->values($card);
 
-        // Semua field dinamis menggunakan Franklin Gothic Medium 9.5 pt.
         $this->writeFitted($pdf, $fontName, $values['nisn'], self::FIELD_X, 25.10, self::FIELD_MAX_WIDTH);
         $this->writeFitted($pdf, $fontName, $values['nama'], self::FIELD_X, 35.90, self::FIELD_MAX_WIDTH);
         $this->writeFitted($pdf, $fontName, $values['tempat_lahir'], self::FIELD_X, 46.70, self::FIELD_MAX_WIDTH);
@@ -85,7 +83,7 @@ class CardPdfServiceFixed
         $this->writeFitted($pdf, $fontName, $values['jenis_kelamin'], self::FIELD_X, 79.00, self::FIELD_MAX_WIDTH);
 
         $tanggalCetak = Carbon::now()->locale('id')->translatedFormat('d F Y');
-        $pdf->SetFont($fontName, '', self::FIELD_SIZE, '', false);
+        $pdf->SetFont($fontName, '', self::FIELD_SIZE);
         $pdf->Text(self::PRINT_DATE_X, self::PRINT_DATE_Y, $tanggalCetak);
 
         $photo = $this->photoPath($card);
@@ -93,7 +91,7 @@ class CardPdfServiceFixed
             $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
         }
 
-        // Jangan mengubah posisi/aset stempel dan tanda tangan saat memperbaiki font.
+        // Posisi/aset stempel dan tanda tangan tidak diubah.
         $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H);
         $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H);
 
@@ -103,10 +101,14 @@ class CardPdfServiceFixed
 
     private function ensureFranklinGothicMedium(string $template): string
     {
-        // TCPDF 7 memakai tc-lib-pdf-font. Jangan override K_PATH_FONTS ke folder aplikasi,
-        // karena TCPDF juga mencari font core seperti helvetica.json di sana.
+        // Gunakan TCPDF 6.x untuk menjaga font core seperti Helvetica tetap tersedia
+        // tanpa tc-lib-pdf-font/helvetica.json generation.
+        $fontsClassFile = base_path('vendor/tecnickcom/tcpdf/include/tcpdf_fonts.php');
         if (! class_exists('TCPDF_FONTS')) {
-            throw new RuntimeException('TCPDF_FONTS tidak tersedia. Jalankan composer install/update.');
+            if (! is_file($fontsClassFile)) {
+                throw new RuntimeException('TCPDF 6.x tidak lengkap. Jalankan composer install/update.');
+            }
+            require_once $fontsClassFile;
         }
 
         $cacheDir = storage_path('app/tcpdf-fonts');
@@ -114,10 +116,14 @@ class CardPdfServiceFixed
             throw new RuntimeException('Folder cache font TCPDF tidak dapat dibuat.');
         }
 
+        // Legacy TCPDF uses K_PATH_FONTS for custom generated definitions.
+        if (! defined('K_PATH_FONTS')) {
+            define('K_PATH_FONTS', rtrim($cacheDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR);
+        }
+
         $cacheKey = substr(sha1_file($template), 0, 16);
         $fontTtf = $cacheDir . DIRECTORY_SEPARATOR . 'FranklinGothic-Medium-' . $cacheKey . '.ttf';
         $fontName = 'franklin_gothic_medium_' . $cacheKey;
-        $definitionFile = $cacheDir . DIRECTORY_SEPARATOR . strtolower($fontName) . '.php';
 
         if (! is_file($fontTtf) || filesize($fontTtf) < 1024) {
             $fontBytes = $this->extractFranklinFontFromPdf($template);
@@ -127,32 +133,30 @@ class CardPdfServiceFixed
         }
 
         if (is_file($fontTtf) && filesize($fontTtf) >= 1024) {
-            try {
-                if (! is_file($definitionFile)) {
-                    $converted = \TCPDF_FONTS::addTTFfont(
-                        $fontTtf,
-                        'TrueTypeUnicode',
-                        '',
-                        32,
-                        $cacheDir,
-                        3,
-                        1,
-                        false,
-                        false
-                    );
-
-                    if ($converted !== false) {
-                        $fontName = $converted;
-                    }
+            $definition = $cacheDir . DIRECTORY_SEPARATOR . $fontName . '.php';
+            if (! is_file($definition)) {
+                $converted = \TCPDF_FONTS::addTTFfont(
+                    $fontTtf,
+                    'TrueTypeUnicode',
+                    '',
+                    32,
+                    $cacheDir,
+                    3,
+                    1,
+                    false,
+                    false
+                );
+                if ($converted !== false) {
+                    $fontName = $converted;
                 }
+            }
 
+            if (is_file($definition)) {
                 return $fontName;
-            } catch (\Throwable) {
-                // Fall through to the vendor TCPDF core font.
             }
         }
 
-        // Fallback memakai font core TCPDF dari vendor, bukan dari storage/app/tcpdf-fonts.
+        // Legacy TCPDF has Helvetica as a built-in core font and does not need JSON font assets.
         return 'helvetica';
     }
 
@@ -169,7 +173,6 @@ class CardPdfServiceFixed
 
         $fontObjectNumber = (int) $fontMatch[1];
         $objectPattern = '/\b' . $fontObjectNumber . '\s+0\s+obj\s*<<(.*?)>>\s*stream\r?\n/s';
-
         if (! preg_match($objectPattern, $pdf, $objectMatch, PREG_OFFSET_CAPTURE)) {
             return null;
         }
@@ -192,7 +195,6 @@ class CardPdfServiceFixed
         }
 
         $font = str_contains($dictionary, '/FlateDecode') ? @gzuncompress($rawStream) : $rawStream;
-
         if (! is_string($font) || ! str_starts_with($font, "\x00\x01\x00\x00")) {
             return null;
         }
@@ -237,14 +239,14 @@ class CardPdfServiceFixed
         }
 
         for ($size = self::FIELD_SIZE; $size >= 7.5; $size -= 0.25) {
-            $pdf->SetFont($fontName, '', $size, '', false);
+            $pdf->SetFont($fontName, '', $size);
             if ($pdf->GetStringWidth($text) <= $maxWidth) {
                 $pdf->Text($x, $y, $text);
                 return;
             }
         }
 
-        $pdf->SetFont($fontName, '', 7.5, '', false);
+        $pdf->SetFont($fontName, '', 7.5);
         $pdf->Text($x, $y, $text);
     }
 }
