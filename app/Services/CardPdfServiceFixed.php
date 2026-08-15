@@ -13,30 +13,31 @@ class CardPdfServiceFixed
     private const PAGE_WIDTH = 567.0;
     private const PAGE_HEIGHT = 850.56;
 
-    private const PHOTO_X = 21.20;
-    private const PHOTO_Y = 85.65;
-    private const PHOTO_W = 61.35;
-    private const PHOTO_H = 68.20;
+    // Koordinat disetel berdasarkan screenshot referensi kedua.
+    private const PHOTO_X = 29.50;
+    private const PHOTO_Y = 100.00;
+    private const PHOTO_W = 47.50;
+    private const PHOTO_H = 43.00;
 
-    // Keduanya sengaja diletakkan di dalam area foto supaya tidak menimpa
-    // blok teks pejabat di sebelah kanan foto.
-    private const STAMP_X = 47.00;
-    private const STAMP_Y = 91.00;
-    private const STAMP_W = 30.00;
-    private const STAMP_H = 30.50;
+    // Stempel berada di bagian kanan-atas foto seperti referensi kedua.
+    private const STAMP_X = 76.50;
+    private const STAMP_Y = 100.00;
+    private const STAMP_W = 56.00;
+    private const STAMP_H = 56.00;
 
-    private const SIGN_X = 36.00;
-    private const SIGN_Y = 124.00;
-    private const SIGN_W = 45.00;
-    private const SIGN_H = 20.00;
+    // Tanda tangan memanjang ke kanan dari area stempel/foto.
+    private const SIGN_X = 145.00;
+    private const SIGN_Y = 151.00;
+    private const SIGN_W = 60.00;
+    private const SIGN_H = 26.00;
 
     private const FIELD_X = 102.50;
     private const FIELD_SIZE = 9.5;
     private const FIELD_MAX_WIDTH = 118.00;
 
-    // "Banda Aceh," berasal dari template; tanggal dicetak tepat di sebelahnya.
-    private const PRINT_DATE_X = 139.0;
-    private const PRINT_DATE_Y = 93.20;
+    // "Banda Aceh," tetap berasal dari template; tanggal cetak ditambahkan di sebelah kanannya.
+    private const PRINT_DATE_X = 150.00;
+    private const PRINT_DATE_Y = 89.00;
 
     public function render(Card $card): string
     {
@@ -78,12 +79,13 @@ class CardPdfServiceFixed
         $fontName = $this->resolveFont($pdf);
         $values = $this->values($card);
 
-        $this->writeFitted($pdf, $fontName, $values['nisn'], self::FIELD_X, 25.10, self::FIELD_MAX_WIDTH);
-        $this->writeFitted($pdf, $fontName, $values['nama'], self::FIELD_X, 35.90, self::FIELD_MAX_WIDTH);
-        $this->writeFitted($pdf, $fontName, $values['tempat_lahir'], self::FIELD_X, 46.70, self::FIELD_MAX_WIDTH);
-        $this->writeFitted($pdf, $fontName, $values['tgl_lahir'], self::FIELD_X, 57.50, self::FIELD_MAX_WIDTH);
-        $this->writeFitted($pdf, $fontName, $values['alamat'], self::FIELD_X, 68.20, self::FIELD_MAX_WIDTH);
-        $this->writeFitted($pdf, $fontName, $values['jenis_kelamin'], self::FIELD_X, 79.00, self::FIELD_MAX_WIDTH);
+        // Nilai dinamis mengikuti posisi referensi kedua dan tetap 9.5 pt.
+        $this->writeFitted($pdf, $fontName, $values['nisn'], self::FIELD_X, 22.70, self::FIELD_MAX_WIDTH);
+        $this->writeFitted($pdf, $fontName, $values['nama'], self::FIELD_X, 32.00, self::FIELD_MAX_WIDTH);
+        $this->writeFitted($pdf, $fontName, $values['tempat_lahir'], self::FIELD_X, 42.80, self::FIELD_MAX_WIDTH);
+        $this->writeFitted($pdf, $fontName, $values['tgl_lahir'], self::FIELD_X, 53.00, self::FIELD_MAX_WIDTH);
+        $this->writeFitted($pdf, $fontName, $values['alamat'], self::FIELD_X, 63.50, self::FIELD_MAX_WIDTH);
+        $this->writeFitted($pdf, $fontName, $values['jenis_kelamin'], self::FIELD_X, 75.00, self::FIELD_MAX_WIDTH);
 
         $pdf->SetFont($fontName, '', self::FIELD_SIZE);
         $pdf->Text(self::PRINT_DATE_X, self::PRINT_DATE_Y, Carbon::now()->locale('id')->translatedFormat('d F Y'));
@@ -93,7 +95,7 @@ class CardPdfServiceFixed
             $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
         }
 
-        // Overlay resmi di atas foto, bukan di atas teks pejabat.
+        // Overlay resmi mengikuti referensi kedua dan tetap berada di atas foto.
         $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H);
         $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H);
 
@@ -130,7 +132,6 @@ class CardPdfServiceFixed
             }
         }
 
-        // Preview tidak boleh gagal hanya karena font belum dipasang.
         return 'helvetica';
     }
 
