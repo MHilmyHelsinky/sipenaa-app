@@ -12,16 +12,16 @@ class CardPdfService
 {
     private const PAGE_WIDTH = 567.0;
     private const PAGE_HEIGHT = 850.56;
-    private const CARD_BLUE = [103, 192, 222];
+    private const PHOTO_X = 21.2;
+    private const PHOTO_Y = 85.65;
+    private const PHOTO_W = 61.35;
+    private const PHOTO_H = 68.20;
 
     public function render(Card $card): string
     {
         $template = storage_path('app/templates/merge_nisn_2020.pdf');
-
         if (! is_file($template)) {
-            throw new RuntimeException(
-                'Template PDF tidak ditemukan di storage/app/templates/merge_nisn_2020.pdf.'
-            );
+            throw new RuntimeException('Template PDF tidak ditemukan di storage/app/templates/merge_nisn_2020.pdf.');
         }
 
         $outputDir = storage_path('app/public/card_exports/pdf');
@@ -46,15 +46,13 @@ class CardPdfService
         $pdf->AddPage('P', [self::PAGE_WIDTH, self::PAGE_HEIGHT]);
         $pdf->useTemplate($templatePage, 0, 0, self::PAGE_WIDTH, self::PAGE_HEIGHT, true);
 
-        // Hanya menutup teks placeholder. Ukuran berdasarkan bounding-box teks dari PDF asli.
+        // Hanya menutup teks placeholder. Koordinat mengikuti template PDF asli.
         $this->coverPlaceholder($pdf, 101.0, 15.4, 70.0, 12.6);
         $this->coverPlaceholder($pdf, 101.0, 26.2, 70.0, 12.6);
         $this->coverPlaceholder($pdf, 101.0, 37.0, 70.0, 12.6);
         $this->coverPlaceholder($pdf, 101.0, 47.8, 70.0, 12.6);
         $this->coverPlaceholder($pdf, 101.0, 58.5, 70.0, 12.6);
         $this->coverPlaceholder($pdf, 100.0, 69.4, 72.0, 12.6);
-
-        // Rectangle 6 pada DOCX: 779145 x 866140 EMU = 61.35 x 68.20 pt.
         $this->coverPlaceholder($pdf, 20.8, 85.2, 62.0, 70.0);
 
         $values = $this->values($card);
@@ -65,13 +63,19 @@ class CardPdfService
         $this->writeFitted($pdf, $values['alamat'], 102.5, 67.9, 68.0, 9.5);
         $this->writeFitted($pdf, $values['jenis_kelamin'], 102.5, 78.7, 68.0, 9.5);
 
+        // Foto berada di bawah overlay resmi.
         $photo = $this->photoPath($card);
         if ($photo) {
-            $pdf->Image($photo, 21.2, 85.65, 61.35, 68.20);
+            $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
+        }
+
+        // Stempel dan tanda tangan transparan diletakkan DI ATAS foto.
+        $overlay = storage_path('app/templates/photo_official_overlay.png');
+        if (is_file($overlay)) {
+            $pdf->Image($overlay, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
         }
 
         $pdf->Output('F', $outputPath);
-
         return $outputPath;
     }
 
@@ -104,8 +108,7 @@ class CardPdfService
 
     private function coverPlaceholder(FPDF $pdf, float $x, float $y, float $w, float $h): void
     {
-        [$r, $g, $b] = self::CARD_BLUE;
-        $pdf->SetFillColor($r, $g, $b);
+        $pdf->SetFillColor(103, 192, 222);
         $pdf->Rect($x, $y, $w, $h, 'F');
     }
 
