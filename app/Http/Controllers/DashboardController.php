@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Card;
 use App\Models\User;
 use App\Services\CardPdfService;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -36,10 +35,19 @@ class DashboardController extends Controller
             $notPrintedCards = max(0, $totalCards - $printedCards);
             $printedToday = Card::whereDate('printed_at', today())->count();
 
-            $inputTodayCards = Card::query()
+            $inputTodayData = Card::query()
                 ->whereDate('created_at', today())
                 ->latest('created_at')
-                ->get();
+                ->get()
+                ->map(fn (Card $card) => [
+                    'nisn' => $card->nisn,
+                    'nama_lengkap' => $card->nama_lengkap,
+                    'tempat_lahir' => $card->tempat_lahir,
+                    'tanggal_lahir' => optional($card->tanggal_lahir)->format('d-m-Y') ?? '-',
+                    'jenis_kelamin' => $card->jenis_kelamin,
+                    'waktu_input' => optional($card->created_at)->format('H:i'),
+                ])
+                ->values();
 
             $months = collect(range(5, 0))->map(function (int $monthsAgo) {
                 $date = now()->startOfMonth()->subMonths($monthsAgo);
@@ -59,8 +67,8 @@ class DashboardController extends Controller
                 'sudahCetak' => $printedCards,
                 'belumCetak' => $notPrintedCards,
                 'cetakHariIni' => $printedToday,
-                'inputTodayCount' => $inputTodayCards->count(),
-                'inputTodayData' => $inputTodayCards,
+                'inputTodayCount' => $inputTodayData->count(),
+                'inputTodayData' => $inputTodayData,
                 'printChart' => $months,
                 'currentDate' => now()->locale('id')->isoFormat('dddd, D MMMM YYYY'),
                 'currentTime' => now()->format('H:i'),
