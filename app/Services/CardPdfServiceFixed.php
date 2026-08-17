@@ -96,7 +96,10 @@ class CardPdfServiceFixed
         if (! is_file($definition)) {
             throw new RuntimeException('Definisi font Franklin tidak ditemukan: ' . $definition);
         }
-        $pdf->AddFont($family, '', $family . '.php', true);
+
+        // Pass the absolute definition path so TCPDF does not need K_PATH_FONTS
+        // to point at storage and does not lose access to its bundled core fonts.
+        $pdf->AddFont($family, '', $definition, true);
         return $family;
     }
 
