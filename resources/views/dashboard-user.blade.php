@@ -35,13 +35,11 @@
         .hero p { margin: 0; color: rgba(255,255,255,0.92); font-size: 1rem; max-width: 38rem; line-height: 1.5; }
         .hero-details { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
         .hero-meta { display: inline-flex; align-items: center; gap: 0.75rem; background: rgba(255,255,255,0.18); padding: 0.85rem 1rem; border-radius: 1rem; font-size: 0.95rem; min-width: 210px; }
-        .hero-meta div { line-height: 1.2; }
-        .hero-meta div strong { display: block; font-size: 1rem; font-weight: 700; }
         .section-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
         .section-card-summary { background: #eff6ff; color: #0f4cd1; padding: 0.85rem 1rem; border-radius: 999px; font-weight: 700; white-space: nowrap; }
         .section-card-subtitle { margin: 0.35rem 0 0; color: #64748b; font-size: 0.95rem; }
         .table-wrap { overflow-x: auto; }
-        .section-card table { width: 100%; border-collapse: collapse; min-width: 640px; }
+        .section-card table { width: 100%; border-collapse: collapse; min-width: 760px; }
         .section-card th, .section-card td { padding: 0.95rem 1rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
         .section-card th { color: #334155; font-weight: 700; background: #f8fbff; }
         .section-card tbody tr:hover { background: #f8fafc; }
@@ -55,9 +53,14 @@
         .section { margin-top: 2rem; }
         .section-card { background: #ffffff; border-radius: 1.5rem; padding: 1.75rem; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08); }
         .section-card h2 { margin: 0 0 1rem; font-size: 1.2rem; color: #102a43; }
-        .chart-placeholder { min-height: 320px; display: grid; place-items: center; border-radius: 1.25rem; background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%); color: #475569; font-size: 1rem; border: 1px dashed rgba(59,130,246,0.35); }
+        .chart { min-height: 320px; display: flex; align-items: flex-end; justify-content: space-around; gap: 1rem; padding: 2rem 1.25rem 1rem; border-radius: 1.25rem; background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%); border: 1px solid #dbeafe; }
+        .bar-group { flex: 1; max-width: 100px; height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0.6rem; }
+        .bar-value { font-weight: 800; color: #1d4ed8; min-height: 1.1rem; }
+        .bar-shell { width: 42px; height: 190px; border-radius: 14px; background: #dbeafe; display: flex; align-items: flex-end; overflow: hidden; }
+        .bar-fill { width: 100%; min-height: 4px; border-radius: 14px 14px 0 0; background: #1d4ed8; }
+        .bar-label { color: #64748b; font-size: 0.9rem; font-weight: 700; }
         @media (max-width: 1024px) { .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-        @media (max-width: 720px) { .topbar { flex-wrap: wrap; justify-content: center; } .hero-details { flex-direction: column; align-items: flex-start; } .stats-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 720px) { .topbar { flex-wrap: wrap; justify-content: center; } .hero-details { flex-direction: column; align-items: flex-start; } .stats-grid { grid-template-columns: 1fr; } .chart { gap: 0.4rem; padding-left: 0.5rem; padding-right: 0.5rem; } }
     </style>
 </head>
 <body>
@@ -105,83 +108,50 @@
         </section>
 
         <section class="stats-grid">
-            <div class="stat-card">
-                <div class="icon"><i class="fas fa-id-card"></i></div>
-                <div>
-                    <div class="label">NISN Terdaftar</div>
-                    <div class="value">{{ number_format($nisnTerdaftar, 0, ',', '.') }}</div>
-                    <small>Total seluruh NISN terdaftar</small>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="icon"><i class="fas fa-print"></i></div>
-                <div>
-                    <div class="label">Sudah Cetak</div>
-                    <div class="value">{{ number_format($sudahCetak, 0, ',', '.') }}</div>
-                    <small>Siswa dengan NISN tercetak</small>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="icon"><i class="fas fa-file-circle-xmark"></i></div>
-                <div>
-                    <div class="label">Belum Cetak</div>
-                    <div class="value">{{ number_format($belumCetak, 0, ',', '.') }}</div>
-                    <small>NISN yang belum tercetak</small>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="icon"><i class="fas fa-clock"></i></div>
-                <div>
-                    <div class="label">Cetak Hari Ini</div>
-                    <div class="value">{{ number_format($cetakHariIni, 0, ',', '.') }}</div>
-                    <small>Kartu dicetak hari ini</small>
+            <div class="stat-card"><div class="icon"><i class="fas fa-id-card"></i></div><div><div class="label">NISN Terdaftar</div><div class="value">{{ number_format($nisnTerdaftar, 0, ',', '.') }}</div><small>Total seluruh NISN terdaftar</small></div></div>
+            <div class="stat-card"><div class="icon"><i class="fas fa-print"></i></div><div><div class="label">Sudah Cetak</div><div class="value">{{ number_format($sudahCetak, 0, ',', '.') }}</div><small>Siswa dengan NISN tercetak</small></div></div>
+            <div class="stat-card"><div class="icon"><i class="fas fa-file-circle-xmark"></i></div><div><div class="label">Belum Cetak</div><div class="value">{{ number_format($belumCetak, 0, ',', '.') }}</div><small>NISN yang belum tercetak</small></div></div>
+            <div class="stat-card"><div class="icon"><i class="fas fa-clock"></i></div><div><div class="label">Cetak Hari Ini</div><div class="value">{{ number_format($cetakHariIni, 0, ',', '.') }}</div><small>Kartu dicetak hari ini</small></div></div>
+        </section>
+
+        <section class="section">
+            <div class="section-card">
+                <h2>Grafik percetakan (6 bulan terakhir)</h2>
+                @php($maxPrint = max(1, $printChart->max('count')))
+                <div class="chart">
+                    @foreach($printChart as $item)
+                        <div class="bar-group">
+                            <div class="bar-value">{{ $item['count'] }}</div>
+                            <div class="bar-shell"><div class="bar-fill" style="height: {{ ($item['count'] / $maxPrint) * 100 }}%"></div></div>
+                            <div class="bar-label">{{ $item['label'] }}</div>
+                        </div>
+                    @endforeach
                 </div>
             </div>
         </section>
 
         <section class="section">
             <div class="section-card">
-                <h2>Grafik percetakan (6 bulan terakhir)</h2>
-                <div class="chart-placeholder">Grafik akan muncul setelah data cetak tersedia.</div>
-            </div>
-        </section>
-        <section class="section">
-            <div class="section-card">
                 <div class="section-card-header">
-                    <div>
-                        <h2>Data Input Hari Ini</h2>
-                        <p class="section-card-subtitle">Menampilkan data input dari user yang masuk hari ini.</p>
-                    </div>
+                    <div><h2>Data Input Hari Ini</h2><p class="section-card-subtitle">Data kartu siswa yang masuk ke database hari ini.</p></div>
                     <div class="section-card-summary">{{ $inputTodayCount }} input hari ini</div>
                 </div>
                 <div class="table-wrap">
                     <table>
-                        <thead>
-                            <tr>
-                                <th>No</th>
-                                <th>NIM</th>
-                                <th>Nama Lengkap</th>
-                                <th>Tempat Lahir</th>
-                                <th>Tanggal Lahir</th>
-                                <th>Jenis Kelamin</th>
-                                <th>Waktu Input</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>No</th><th>NISN</th><th>Nama Lengkap</th><th>Tempat Lahir</th><th>Tanggal Lahir</th><th>Jenis Kelamin</th><th>Waktu Input</th></tr></thead>
                         <tbody>
                             @forelse($inputTodayData as $index => $input)
                                 <tr>
                                     <td>{{ $index + 1 }}</td>
-                                    <td>{{ $input['nim'] ?? '-' }}</td>
-                                    <td>{{ $input['nama_lengkap'] ?? '-' }}</td>
-                                    <td>{{ $input['tempat_lahir'] ?? '-' }}</td>
-                                    <td>{{ $input['tanggal_lahir'] ?? '-' }}</td>
-                                    <td>{{ $input['jenis_kelamin'] ?? '-' }}</td>
-                                    <td>{{ $input['waktu_input'] ?? '-' }}</td>
+                                    <td>{{ $input['nisn'] }}</td>
+                                    <td>{{ $input['nama_lengkap'] }}</td>
+                                    <td>{{ $input['tempat_lahir'] }}</td>
+                                    <td>{{ $input['tanggal_lahir'] }}</td>
+                                    <td>{{ $input['jenis_kelamin'] }}</td>
+                                    <td>{{ $input['waktu_input'] }}</td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="5" class="empty-state">Belum ada data input hari ini.</td>
-                                </tr>
+                                <tr><td colspan="7" class="empty-state">Belum ada data input hari ini.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
