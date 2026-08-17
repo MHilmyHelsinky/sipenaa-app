@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpWord\TemplateProcessor;
 use RuntimeException;
 
@@ -139,8 +141,98 @@ class DashboardController extends Controller
     public function downloadPdf(Card $card) { $path = $this->renderPdf($card); $card->forceFill(['printed_at' => now()])->save(); return response()->download($path, 'kartu_' . Str::slug($card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.pdf', ['Content-Type' => 'application/pdf'])->deleteFileAfterSend(true); }
     protected function renderPdf(Card $card): string { try { return $this->cardPdfService->render($card); } catch (RuntimeException $e) { abort(500, $e->getMessage()); } }
     public function downloadWord(Card $card) { $response = app(WordDownloadControllerFixed::class)->download($card); $card->forceFill(['printed_at' => now()])->save(); return $response; }
-    public function dataKartu(): View { return view('data-kartu', ['cards' => Card::latest()->get()]); }
-    public function laporan(): View { return view('laporan'); }
+    public function dataKartu(Request $request): View
+    {
+        $search = $request->query('search', '');
+        $waktuInput = $request->query('waktu_input', '');
+
+        $query = Card::query();
+
+        // Search by NISN or Nama Lengkap
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('nisn', 'like', '%' . $search . '%')
+                  ->orWhere('nama_lengkap', 'like', '%' . $search . '%');
+            });
+        }
+
+        // Filter by Waktu Input (date range)
+        if ($waktuInput !== '') {
+            $targetDate = Carbon::parse($waktuInput)->format('Y-m-d');
+            $query->whereDate('created_at', $targetDate);
+        }
+
+        $cards = $query->latest()->get();
+
+        return view('data-kartu', [
+            'cards' => $cards,
+            'search' => $search,
+            'waktuInput' => $waktuInput,
+        ]);
+    }
+    public function laporan(): View
+    {
+        $cards = Card::query()
+            ->latest('created_at')
+            ->get()
+            ->map(function (Card $card) {
+                return [
+                    'id' => $card->id,
+                    'nisn' => $card->nisn ?? '-',
+                    'nama_lengkap' => $card->nama_lengkap ?? '-',
+                    'tempat_lahir' => $card->tempat_lahir ?? '-',
+                    'tanggal_lahir' => optional($card->tanggal_lahir)->format('d-m-Y') ?? '-',
+                    'alamat' => trim(($card->desa ? $card->desa . ', ' : '') . ($card->kecamatan ? $card->kecamatan . ', ' : '') . ($card->kabupaten ?? '')) ?: '-',
+                    'jenis_kelamin' => $card->jenis_kelamin ?? '-',
+                    'keterangan' => $card->printed_at ? 'Sudah cetak' : 'Belum cetak',
+                ];
+            });
+
+        return view('laporan', ['cards' => $cards]);
+    }
+
+    public function exportLaporan()
+    {
+        $cards = Card::query()->latest('created_at')->get();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Laporan');
+
+        $headers = ['NISN', 'Nama', 'Tempat Lahir', 'Tanggal Lahir', 'Alamat', 'Jenis Kelamin', 'Keterangan'];
+        $sheet->fromArray([$headers], null, 'A1');
+
+        $row = 2;
+        foreach ($cards as $card) {
+            $sheet->fromArray([
+                [
+                    $card->nisn ?? '-',
+                    $card->nama_lengkap ?? '-',
+                    $card->tempat_lahir ?? '-',
+                    optional($card->tanggal_lahir)->format('d-m-Y') ?? '-',
+                    trim(($card->desa ? $card->desa . ', ' : '') . ($card->kecamatan ? $card->kecamatan . ', ' : '') . ($card->kabupaten ?? '')) ?: '-',
+                    $card->jenis_kelamin ?? '-',
+                    $card->printed_at ? 'Sudah cetak' : 'Belum cetak',
+                ],
+            ], null, 'A' . $row);
+            $row++;
+        }
+
+        foreach (range('A', 'G') as $column) {
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+
+        $sheet->getStyle('A1:G1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:G' . ($row - 1))->getBorders()->getAllBorders()->setBorderStyle('thin');
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'laporan_');
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($tempFile);
+
+        return response()->download($tempFile, 'laporan.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
     public function manageUsers(Request $request): View { $this->authorizeSuperAdmin(); return view('manajemen-pengguna', ['users' => User::orderByRaw("role = 'super_admin' desc")->orderBy('name')->get()]); }
     protected function generateUniqueUsername(string $name): string { $base = Str::slug($name, '_'); $candidate = $base ?: 'user'; $count = 1; while (User::where('username', $candidate)->exists()) $candidate = $base . $count++; return $candidate; }
     public function storeUser(Request $request) { $this->authorizeSuperAdmin(); $validated = $request->validate(['name' => ['required','string','max:255'],'password' => ['required','confirmed','min:8'],'role' => ['required','in:super_admin,user']]); User::create(['name'=>$validated['name'],'username'=>$this->generateUniqueUsername($validated['name']),'password'=>Hash::make($validated['password']),'role'=>$validated['role'],'is_active'=>true]); return back()->with('success','Akun baru berhasil dibuat.'); }

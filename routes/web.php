@@ -54,6 +54,10 @@ Route::get('/laporan', [DashboardController::class, 'laporan'])
     ->middleware(['auth'])
     ->name('laporan');
 
+Route::get('/laporan/export', [DashboardController::class, 'exportLaporan'])
+    ->middleware(['auth'])
+    ->name('laporan.export');
+
 Route::post('/manajemen-pengguna', [DashboardController::class, 'storeUser'])
     ->middleware(['auth'])
     ->name('manajemen.pengguna.store');

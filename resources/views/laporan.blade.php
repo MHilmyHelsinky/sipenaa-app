@@ -28,12 +28,26 @@
         .profile-menu a, .profile-menu button { display: block; width: 100%; padding: 0.85rem 1rem; background: transparent; border: none; text-align: left; color: #0f172a; font-size: 0.95rem; cursor: pointer; text-decoration: none; }
         .profile-menu a:hover, .profile-menu button:hover { background: #eff6ff; }
         .profile-menu form { margin: 0; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        .container { max-width: 1280px; margin: 0 auto; padding: 2rem; }
         .page-header { margin-bottom: 1.5rem; }
         .page-title { margin: 0; font-size: 1.75rem; font-weight: 800; }
         .page-subtitle { margin: 0.5rem 0 0; color: #64748b; }
         .page-card { background: #ffffff; border-radius: 1.5rem; padding: 1.75rem; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08); }
-        @media (max-width: 720px) { .topbar { flex-wrap: wrap; justify-content: center; } .nav-links { width: 100%; justify-content: center; flex-wrap: wrap; } }
+        .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
+        .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.1rem; border-radius: 0.875rem; text-decoration: none; font-weight: 700; cursor: pointer; border: none; font-family: inherit; }
+        .btn-primary { background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #ffffff; box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2); }
+        .btn-primary:hover { background: linear-gradient(135deg, #1e40af, #1d4ed8); }
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+        th, td { padding: 0.9rem 0.9rem; text-align: left; }
+        th { background: #7fb0d5; color: #ffffff; font-weight: 700; }
+        tr { border-bottom: 1px solid rgba(15, 23, 42, 0.08); }
+        tr:nth-child(even) { background: #f8fafc; }
+        .empty-state { text-align: center; color: #64748b; padding: 1.5rem 0; }
+        .status-badge { display: inline-flex; align-items: center; padding: 0.35rem 0.7rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
+        .status-ok { background: #dcfce7; color: #166534; }
+        .status-wait { background: #fee2e2; color: #b91c1c; }
+        @media (max-width: 720px) { .topbar { flex-wrap: wrap; justify-content: center; } .nav-links { width: 100%; justify-content: center; flex-wrap: wrap; } .toolbar { flex-direction: column; align-items: stretch; } }
     </style>
 </head>
 <body>
@@ -66,10 +80,57 @@
     <main class="container">
         <section class="page-header">
             <h1 class="page-title">Laporan</h1>
-            <p class="page-subtitle">Ringkasan laporan dan data cetak kartu.</p>
+            <p class="page-subtitle">Data siswa yang tersedia untuk laporan dan ekspor Excel.</p>
         </section>
         <section class="page-card">
-            <p>Halaman laporan sedang disiapkan. Laporan detail akan tampil di sini nanti.</p>
+            <div class="toolbar">
+                <div>
+                    <strong>{{ $cards->count() }}</strong> data laporan
+                </div>
+                <a href="{{ route('laporan.export') }}" class="btn btn-primary">
+                    <i class="fa-solid fa-file-excel"></i>
+                    Unduh Excel
+                </a>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>NISN</th>
+                            <th>Nama</th>
+                            <th>Tempat Lahir</th>
+                            <th>Tanggal Lahir</th>
+                            <th>Alamat</th>
+                            <th>Jenis Kelamin</th>
+                            <th>Keterangan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($cards as $card)
+                            <tr>
+                                <td>{{ $card['nisn'] }}</td>
+                                <td>{{ $card['nama_lengkap'] }}</td>
+                                <td>{{ $card['tempat_lahir'] }}</td>
+                                <td>{{ $card['tanggal_lahir'] }}</td>
+                                <td>{{ $card['alamat'] }}</td>
+                                <td>{{ $card['jenis_kelamin'] }}</td>
+                                <td>
+                                    @if($card['keterangan'] === 'Sudah cetak')
+                                        <span class="status-badge status-ok">Sudah cetak</span>
+                                    @else
+                                        <span class="status-badge status-wait">Belum cetak</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="empty-state">Belum ada data laporan untuk ditampilkan.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
         </section>
     </main>
 </body>
