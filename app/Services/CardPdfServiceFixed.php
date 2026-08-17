@@ -33,9 +33,9 @@ class CardPdfServiceFixed
     private const SIGN_W = 53.30;
     private const SIGN_H = 32.50;
 
-    // Raise print date so it shares the visual baseline of "Banda Aceh,".
+    // Print date moved upward to align with the "Banda Aceh," baseline.
     private const PRINT_DATE_X = 170.50;
-    private const PRINT_DATE_Y = 87.70;
+    private const PRINT_DATE_Y = 86.30;
 
     public function render(Card $card): string
     {
