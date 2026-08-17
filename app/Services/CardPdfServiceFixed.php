@@ -33,7 +33,7 @@ class CardPdfServiceFixed
     private const SIGN_W = 53.30;
     private const SIGN_H = 32.50;
 
-    // Print date moved slightly left and up to match the "Banda Aceh," baseline.
+    // Layout is intentionally unchanged. Only the font for dynamic text is being changed.
     private const PRINT_DATE_X = 165.50;
     private const PRINT_DATE_Y = 83.80;
 
@@ -75,13 +75,15 @@ class CardPdfServiceFixed
         $pdf->AddPage('P', [self::PAGE_W, self::PAGE_H]);
         $pdf->useTemplate($templatePage, 0, 0, self::PAGE_W, self::PAGE_H, true);
 
+        // Font change only: Franklin Gothic Medium, exactly 9.5 pt.
         $font = $this->resolveFranklin($pdf);
         $values = $this->values($card);
 
         foreach (array_values($values) as $i => $value) {
-            $this->writeFitted($pdf, $font, $value, self::VALUE_X, self::VALUE_Y[$i], self::VALUE_MAX_WIDTH);
+            $this->writeFixedSize($pdf, $font, $value, self::VALUE_X, self::VALUE_Y[$i]);
         }
 
+        // Same fixed font and size for the print date. Position remains unchanged.
         $pdf->SetFont($font, '', self::FONT_SIZE);
         $pdf->Text(
             self::PRINT_DATE_X,
@@ -89,13 +91,14 @@ class CardPdfServiceFixed
             Carbon::now()->locale('id')->translatedFormat('d F Y')
         );
 
+        // Everything below is intentionally unchanged.
         $photo = $this->photoPath($card);
         if ($photo) {
             $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H, '', '', '', false, 300, '', false, false, 0, 'CM', false, false);
         }
 
         $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H, '', '', '', false, 300, '', false, false, 0, 'CM', false, false);
-        $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H, '', '', '', false, 300, '', false, false, 0, 'CM', false, false);
+        $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H, '', '', '', false, 300, '', '', false, false, 0, 'CM', false, false);
 
         $pdf->Output($outputPath, 'F');
 
@@ -122,11 +125,14 @@ class CardPdfServiceFixed
                     return $registered;
                 }
             } catch (\Throwable) {
-                // Keep preview working even when the optional font is unavailable.
+                // Try the next configured font location.
             }
         }
 
-        return 'helvetica';
+        throw new RuntimeException(
+            'Font Franklin Gothic Medium tidak ditemukan. Letakkan framd.ttf di storage/app/fonts/ ' .
+            'atau isi SIPENA_FRANKLIN_FONT_PATH di .env. Tata letak kartu tidak diubah.'
+        );
     }
 
     private function values(Card $card): array
@@ -158,22 +164,20 @@ class CardPdfServiceFixed
         return Storage::disk('public')->path($card->foto_path);
     }
 
-    private function writeFitted(Fpdi $pdf, string $font, string $text, float $x, float $y, float $maxWidth): void
-    {
+    private function writeFixedSize(
+        Fpdi $pdf,
+        string $font,
+        string $text,
+        float $x,
+        float $y
+    ): void {
         $text = trim($text);
         if ($text === '') {
             return;
         }
 
-        for ($size = self::FONT_SIZE; $size >= 8.0; $size -= 0.25) {
-            $pdf->SetFont($font, '', $size);
-            if ($pdf->GetStringWidth($text) <= $maxWidth) {
-                $pdf->Text($x, $y, $text);
-                return;
-            }
-        }
-
-        $pdf->SetFont($font, '', 8.0);
+        // Do not auto-shrink: user requested exactly Franklin Gothic Medium 9.5 pt.
+        $pdf->SetFont($font, '', self::FONT_SIZE);
         $pdf->Text($x, $y, $text);
     }
 }
