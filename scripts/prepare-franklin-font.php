@@ -23,40 +23,50 @@ if (! is_dir($fontDir) && ! mkdir($fontDir, 0777, true) && ! is_dir($fontDir)) {
     exit(1);
 }
 
-// Keep TCPDF's bundled core font definitions (Helvetica, Times, Courier) on vendor.
+// Keep TCPDF bundled core fonts (Helvetica, Times, Courier) in vendor.
 if (! defined('K_PATH_FONTS')) {
     define('K_PATH_FONTS', $vendorFontDir . DIRECTORY_SEPARATOR);
 }
 
 require $root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
 
-$pdf = new TCPDF();
+if (! class_exists('TCPDF_FONTS')) {
+    fwrite(STDERR, "Class TCPDF_FONTS tidak tersedia. Pastikan tecnickcom/tcpdf terpasang dengan benar.\n");
+    exit(2);
+}
 
 try {
-    $registered = $pdf->addTTFfont(
-        $fontSource,
+    // TCPDF 6.x signature:
+    // addTTFfont($fontfile, $fonttype, $enc, $flags, $outpath, $platid, $encid, $addcbbox, $link)
+    // This is a static method on TCPDF_FONTS.
+    $registered = TCPDF_FONTS::addTTFfont(
+        realpath($fontSource),
         'TrueTypeUnicode',
         '',
-        'UTF-8',
         32,
-        $fontDir . DIRECTORY_SEPARATOR
+        $fontDir . DIRECTORY_SEPARATOR,
+        3,
+        1,
+        false,
+        false
     );
 
     if (! is_string($registered) || $registered === '') {
         fwrite(STDERR, "Gagal mendaftarkan Franklin Gothic Medium.\n");
-        exit(2);
+        exit(3);
     }
 
     $definition = $fontDir . DIRECTORY_SEPARATOR . $registered . '.php';
     if (! is_file($definition)) {
         fwrite(STDERR, "Definisi font tidak ditemukan setelah registrasi: {$definition}\n");
-        exit(3);
+        exit(4);
     }
 
     file_put_contents($marker, $registered . PHP_EOL, LOCK_EX);
     echo "Franklin berhasil disiapkan: {$registered}\n";
     echo "Definisi font: {$definition}\n";
+    exit(0);
 } catch (Throwable $e) {
     fwrite(STDERR, $e->getMessage() . "\n");
-    exit(4);
+    exit(5);
 }
