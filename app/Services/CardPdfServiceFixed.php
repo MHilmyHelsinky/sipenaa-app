@@ -11,33 +11,25 @@ use ZipArchive;
 
 class CardPdfServiceFixed
 {
-    private const PAGE_W = 567.0;   // 200 mm
-    private const PAGE_H = 850.56;  // 300 mm
-    private const CARD_H = 170.08;  // 60 mm visible card
+    private const PAGE_W = 567.0;
+    private const PAGE_H = 850.56;
+    private const CARD_H = 170.08;
     private const FONT_SIZE = 9.5;
 
     private const VALUE_X = 113.5;
     private const VALUE_Y = [26.1, 39.1, 51.5, 63.9, 76.3, 88.7];
-
-    // Exact Rectangle 6 geometry from the original DOCX, converted from EMU to points.
     private const PHOTO_X = 26.9;
     private const PHOTO_Y = 84.8;
     private const PHOTO_W = 61.4;
     private const PHOTO_H = 68.2;
-
-    // Exact Picture 21 geometry from the original DOCX, converted from EMU to points.
     private const STAMP_X = 79.3;
     private const STAMP_Y = 84.9;
     private const STAMP_W = 69.6;
     private const STAMP_H = 70.6;
-
-    // Exact signature geometry from the original DOCX, converted from EMU to points.
     private const SIGN_X = 134.0;
     private const SIGN_Y = 108.0;
     private const SIGN_W = 53.3;
     private const SIGN_H = 32.5;
-
-    // Text Box 8 geometry/content.
     private const OFFICIAL_X = 119.0;
     private const OFFICIAL_DATE_Y = 95.0;
     private const OFFICIAL_DEPT1_Y = 108.5;
@@ -53,12 +45,8 @@ class CardPdfServiceFixed
         }
 
         $assets = $this->extractAssets($templateDocx);
-        $stamp = is_file(storage_path('app/templates/stamp.png'))
-            ? storage_path('app/templates/stamp.png')
-            : $assets['stamp'];
-        $signature = is_file(storage_path('app/templates/signature.png'))
-            ? storage_path('app/templates/signature.png')
-            : $assets['signature'];
+        $stamp = is_file(storage_path('app/templates/stamp.png')) ? storage_path('app/templates/stamp.png') : $assets['stamp'];
+        $signature = is_file(storage_path('app/templates/signature.png')) ? storage_path('app/templates/signature.png') : $assets['signature'];
 
         $outputDir = storage_path('app/public/card_exports/pdf');
         if (! is_dir($outputDir) && ! mkdir($outputDir, 0777, true) && ! is_dir($outputDir)) {
@@ -78,8 +66,6 @@ class CardPdfServiceFixed
         $pdf->AddPage('P', [self::PAGE_W, self::PAGE_H]);
 
         $font = $this->resolveFranklin($pdf);
-
-        // Background/layout comes from the original Word media, not the old PDF template.
         $pdf->Image($assets['left_crop'], 0, 0, self::PAGE_W, self::CARD_H, 'JPEG');
         $pdf->Image($assets['right'], 274.4, 0, 267.9, 170.2, 'JPEG');
 
@@ -88,7 +74,6 @@ class CardPdfServiceFixed
             $this->writeFitted($pdf, $font, $value, self::VALUE_X, self::VALUE_Y[$i], 155.0);
         }
 
-        // The official block is written exactly once; no old date/name block is reused.
         $today = Carbon::now()->locale('id')->translatedFormat('d F Y');
         $this->writeLine($pdf, $font, 'Banda Aceh, ' . $today, self::OFFICIAL_X, self::OFFICIAL_DATE_Y);
         $this->writeLine($pdf, $font, 'KEPALA DINAS PENDIDIKAN DAN', self::OFFICIAL_X, self::OFFICIAL_DEPT1_Y);
@@ -98,15 +83,13 @@ class CardPdfServiceFixed
 
         $photo = $this->photoPath($card);
         if ($photo) {
-            $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H, '', '', '', false, 300, '', false, false, 0, 'CM', false, false);
+            $pdf->Image($photo, self::PHOTO_X, self::PHOTO_Y, self::PHOTO_W, self::PHOTO_H);
         }
-
-        // Required visual stacking: photo, then stamp and signature above it.
-        $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H, '', '', '', false, 300, '', false, false, 0, 'CM', false, false);
-        $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H, '', '', '', false, 300, '', false, false, 0, 'CM', false, false);
+        $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H, 'PNG');
+        $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H, 'PNG');
 
         $pdf->Output($outputPath, 'F');
-        $this->cleanup($assets['left_raw'], $assets['left_crop'], $assets['right'], $assets['stamp'], $assets['signature']);
+        $this->cleanup($assets);
 
         return $outputPath;
     }
@@ -122,57 +105,65 @@ class CardPdfServiceFixed
             throw new RuntimeException('Folder aset PDF tidak dapat dibuat.');
         }
 
-        $leftRaw = $dir . DIRECTORY_SEPARATOR . uniqid('left_', true) . '.jpg';
-        $leftCrop = $dir . DIRECTORY_SEPARATOR . uniqid('left_crop_', true) . '.jpg';
-        $right = $dir . DIRECTORY_SEPARATOR . uniqid('right_', true) . '.jpeg';
-        $stamp = $dir . DIRECTORY_SEPARATOR . uniqid('stamp_', true) . '.png';
-        $signature = $dir . DIRECTORY_SEPARATOR . uniqid('signature_', true) . '.png';
+        $paths = [
+            'left_raw' => $dir . DIRECTORY_SEPARATOR . uniqid('left_', true) . '.jpg',
+            'left_crop' => $dir . DIRECTORY_SEPARATOR . uniqid('left_crop_', true) . '.jpg',
+            'right' => $dir . DIRECTORY_SEPARATOR . uniqid('right_', true) . '.jpeg',
+            'stamp' => $dir . DIRECTORY_SEPARATOR . uniqid('stamp_', true) . '.png',
+            'signature' => $dir . DIRECTORY_SEPARATOR . uniqid('signature_', true) . '.png',
+        ];
+
+        $entries = [
+            'left_raw' => 'word/media/image6.jpg',
+            'right' => 'word/media/image1.jpeg',
+            'stamp' => 'word/media/image2.png',
+            'signature' => 'word/media/image3.png',
+        ];
 
         $zip = new ZipArchive();
         if ($zip->open($docxPath) !== true) {
             throw new RuntimeException('Template Word tidak dapat dibuka.');
         }
 
-        $entries = [
-            'word/media/image6.jpg' => $leftRaw,
-            'word/media/image1.jpeg' => $right,
-            'word/media/image2.png' => $stamp,
-            'word/media/image3.png' => $signature,
-        ];
-
-        foreach ($entries as $entry => $destination) {
+        foreach ($entries as $key => $entry) {
             $bytes = $zip->getFromName($entry);
-            if ($bytes === false || file_put_contents($destination, $bytes) === false) {
+            if ($bytes === false || file_put_contents($paths[$key], $bytes) === false) {
                 $zip->close();
                 throw new RuntimeException('Aset template tidak ditemukan: ' . $entry);
             }
         }
         $zip->close();
 
+        $this->createLeftCrop($paths['left_raw'], $paths['left_crop']);
+
+        return $paths;
+    }
+
+    private function createLeftCrop(string $leftRaw, string $leftCrop): void
+    {
         if (function_exists('imagecreatefromjpeg') && function_exists('imagejpeg')) {
             $src = @imagecreatefromjpeg($leftRaw);
             if ($src !== false) {
                 $w = imagesx($src);
                 $h = imagesy($src);
-                $cropH = (int) round($h * 0.5);
+                $cropH = max(1, (int) round($h * 0.5));
                 $crop = imagecreatetruecolor($w, $cropH);
                 imagecopy($crop, $src, 0, 0, 0, 0, $w, $cropH);
                 imagejpeg($crop, $leftCrop, 95);
                 imagedestroy($crop);
                 imagedestroy($src);
-            } else {
-                copy($leftRaw, $leftCrop);
+                return;
             }
-        } else {
-            copy($leftRaw, $leftCrop);
         }
 
-        return compact('leftRaw', 'leftCrop', 'right', 'stamp', 'signature');
+        if (! copy($leftRaw, $leftCrop)) {
+            throw new RuntimeException('Background kiri tidak dapat diproses.');
+        }
     }
 
-    private function cleanup(string ...$paths): void
+    private function cleanup(array $assets): void
     {
-        foreach ($paths as $path) {
+        foreach ($assets as $path) {
             if (is_file($path)) {
                 @unlink($path);
             }
@@ -217,9 +208,7 @@ class CardPdfServiceFixed
             (string) ($card->nisn ?? '-'),
             (string) ($card->nama_lengkap ?? '-'),
             (string) ($card->tempat_lahir ?? '-'),
-            $card->tanggal_lahir
-                ? Carbon::parse($card->tanggal_lahir)->locale('id')->translatedFormat('d F Y')
-                : '-',
+            $card->tanggal_lahir ? Carbon::parse($card->tanggal_lahir)->locale('id')->translatedFormat('d F Y') : '-',
             $alamat !== '' ? $alamat : '-',
             (string) ($card->jenis_kelamin ?? '-'),
         ];
@@ -239,7 +228,6 @@ class CardPdfServiceFixed
         if ($text === '') {
             return;
         }
-
         for ($size = self::FONT_SIZE; $size >= 8.0; $size -= 0.25) {
             $pdf->SetFont($font, '', $size);
             if ($pdf->GetStringWidth($text) <= $maxWidth) {
@@ -247,7 +235,6 @@ class CardPdfServiceFixed
                 return;
             }
         }
-
         $pdf->SetFont($font, '', 8.0);
         $pdf->Text($x, $y, $text);
     }
