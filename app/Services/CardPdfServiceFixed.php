@@ -98,7 +98,7 @@ class CardPdfServiceFixed
         }
 
         $pdf->Image($stamp, self::STAMP_X, self::STAMP_Y, self::STAMP_W, self::STAMP_H, '', '', '', false, 300, '', false, false, 0, 'CM', false, false);
-        $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H, '', '', '', false, 300, '', '', false, false, 0, 'CM', false, false);
+        $pdf->Image($signature, self::SIGN_X, self::SIGN_Y, self::SIGN_W, self::SIGN_H, '', '', '', false, 300, '', false, false, 0, 'CM', false, false);
 
         $pdf->Output($outputPath, 'F');
 
@@ -164,19 +164,14 @@ class CardPdfServiceFixed
         return Storage::disk('public')->path($card->foto_path);
     }
 
-    private function writeFixedSize(
-        Fpdi $pdf,
-        string $font,
-        string $text,
-        float $x,
-        float $y
-    ): void {
+    private function writeFixedSize(Fpdi $pdf, string $font, string $text, float $x, float $y): void
+    {
         $text = trim($text);
         if ($text === '') {
             return;
         }
 
-        // Do not auto-shrink: user requested exactly Franklin Gothic Medium 9.5 pt.
+        // No auto-shrinking: the requested size is exactly 9.5 pt.
         $pdf->SetFont($font, '', self::FONT_SIZE);
         $pdf->Text($x, $y, $text);
     }
