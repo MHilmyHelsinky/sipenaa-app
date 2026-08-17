@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-#[Fillable(['nisn', 'nama_lengkap', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'desa', 'kecamatan', 'kabupaten', 'foto_path'])]
+#[Fillable(['nisn', 'nama_lengkap', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'desa', 'kecamatan', 'kabupaten', 'foto_path', 'printed_at'])]
 class Card extends Model
 {
     use HasFactory;
@@ -15,6 +15,7 @@ class Card extends Model
     {
         return [
             'tanggal_lahir' => 'date',
+            'printed_at' => 'datetime',
         ];
     }
 }
