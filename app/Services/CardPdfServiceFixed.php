@@ -109,6 +109,7 @@ class CardPdfServiceFixed
     {
         $paths = array_filter([
             config('sipena.franklin_font_path'),
+            env('SIPENA_FRANKLIN_FONT_PATH'),
             storage_path('app/fonts/framd.ttf'),
             storage_path('app/fonts/FranklinGothic-Medium.ttf'),
             getenv('WINDIR') ? rtrim(getenv('WINDIR'), '\\') . '\\Fonts\\framd.ttf' : null,
@@ -116,16 +117,16 @@ class CardPdfServiceFixed
         ]);
 
         foreach ($paths as $fontFile) {
-            if (! is_file($fontFile) || filesize($fontFile) < 1024) {
+            if (! is_string($fontFile) || ! is_file($fontFile) || filesize($fontFile) < 1024) {
                 continue;
             }
 
             try {
-                // TCPDF signature: addTTFfont(file, type, style, encoding, flags)
-                // The previous code passed 32 as the encoding argument, which can make
-                // registration fail and then cause the Preview request to return HTTP 500.
-                $registered = $pdf->addTTFfont($fontFile, 'TrueTypeUnicode', '', 'UTF-8', 32);
-                if ($registered !== false) {
+                // TCPDF 6.x expects flags as the 4th argument.
+                // The font is converted into TCPDF's own font format and the
+                // returned family name is then used by SetFont().
+                $registered = $pdf->addTTFfont($fontFile, 'TrueTypeUnicode', '', 32);
+                if ($registered !== false && is_string($registered) && $registered !== '') {
                     return $registered;
                 }
             } catch (\Throwable) {
@@ -133,8 +134,7 @@ class CardPdfServiceFixed
             }
         }
 
-        // Keep the application alive when Franklin is not installed on a server.
-        // On the developer Windows machine, framd.ttf should be found at C:\Windows\Fonts.
+        // Keep the PDF operational on a server that has not yet received the font.
         return 'helvetica';
     }
 
@@ -167,8 +167,13 @@ class CardPdfServiceFixed
         return Storage::disk('public')->path($card->foto_path);
     }
 
-    private function writeFixedSize(Fpdi $pdf, string $font, string $text, float $x, float $y): void
-    {
+    private function writeFixedSize(
+        Fpdi $pdf,
+        string $font,
+        string $text,
+        float $x,
+        float $y
+    ): void {
         $text = trim($text);
         if ($text === '') {
             return;
