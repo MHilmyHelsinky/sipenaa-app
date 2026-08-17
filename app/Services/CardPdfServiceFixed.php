@@ -14,7 +14,6 @@ class CardPdfServiceFixed
     private const PAGE_H = 850.56;
     private const FONT_SIZE = 9.5;
 
-    // Values align with the printed labels, shifted slightly upward to sit on the same baseline.
     private const VALUE_X = 102.5;
     private const VALUE_Y = [17.30, 28.10, 38.90, 49.70, 60.40, 71.20];
     private const VALUE_MAX_WIDTH = 165.0;
@@ -34,9 +33,9 @@ class CardPdfServiceFixed
     private const SIGN_W = 53.30;
     private const SIGN_H = 32.50;
 
-    // Same baseline as the existing "Banda Aceh," text in the template.
+    // Raise print date so it shares the visual baseline of "Banda Aceh,".
     private const PRINT_DATE_X = 170.50;
-    private const PRINT_DATE_Y = 89.20;
+    private const PRINT_DATE_Y = 87.70;
 
     public function render(Card $card): string
     {
