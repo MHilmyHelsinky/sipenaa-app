@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Card;
 use App\Models\User;
 use App\Services\CardPdfService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -28,15 +29,18 @@ class DashboardController extends Controller
     public function index(Request $request): View
     {
         $user = $request->user();
+        $localNow = Carbon::now('Asia/Jakarta');
 
         if ($user->role === 'user') {
             $totalCards = Card::count();
             $printedCards = Card::whereNotNull('printed_at')->count();
             $notPrintedCards = max(0, $totalCards - $printedCards);
-            $printedToday = Card::whereDate('printed_at', today())->count();
+            $printedToday = Card::whereNotNull('printed_at')
+                ->whereDate('printed_at', $localNow->toDateString())
+                ->count();
 
             $inputTodayData = Card::query()
-                ->whereDate('created_at', today())
+                ->whereDate('created_at', $localNow->toDateString())
                 ->latest('created_at')
                 ->get()
                 ->map(fn (Card $card) => [
@@ -45,22 +49,25 @@ class DashboardController extends Controller
                     'tempat_lahir' => $card->tempat_lahir,
                     'tanggal_lahir' => optional($card->tanggal_lahir)->format('d-m-Y') ?? '-',
                     'jenis_kelamin' => $card->jenis_kelamin,
-                    'waktu_input' => optional($card->created_at)->format('H:i'),
+                    'waktu_input' => $card->created_at
+                        ? $card->created_at->timezone('Asia/Jakarta')->format('H:i') . ' WIB'
+                        : '-',
                 ])
                 ->values();
 
-            $months = collect(range(5, 0))->map(function (int $monthsAgo) {
-                $date = now()->startOfMonth()->subMonths($monthsAgo);
+            $months = collect(range(5, 0))->map(function (int $monthsAgo) use ($localNow) {
+                $date = $localNow->copy()->startOfMonth()->subMonths($monthsAgo);
                 $next = $date->copy()->addMonth();
 
                 return [
                     'label' => $date->locale('id')->translatedFormat('M'),
+                    'full_label' => $date->locale('id')->translatedFormat('F'),
                     'count' => Card::whereNotNull('printed_at')
-                        ->where('printed_at', '>=', $date)
-                        ->where('printed_at', '<', $next)
+                        ->where('printed_at', '>=', $date->copy()->setTimezone('UTC'))
+                        ->where('printed_at', '<', $next->copy()->setTimezone('UTC'))
                         ->count(),
                 ];
-            });
+            })->values();
 
             return view('dashboard-user', [
                 'nisnTerdaftar' => $totalCards,
@@ -70,15 +77,15 @@ class DashboardController extends Controller
                 'inputTodayCount' => $inputTodayData->count(),
                 'inputTodayData' => $inputTodayData,
                 'printChart' => $months,
-                'currentDate' => now()->locale('id')->isoFormat('dddd, D MMMM YYYY'),
-                'currentTime' => now()->format('H:i'),
+                'printChartMax' => max(1, (int) $months->max('count')),
+                'currentDate' => $localNow->locale('id')->isoFormat('dddd, D MMMM YYYY'),
+                'currentTime' => $localNow->format('H:i'),
             ]);
         }
 
-        $today = now();
         $totalPetugas = User::where('role', 'user')->count();
-        $inputToday = Card::whereDate('created_at', $today)->count();
-        $activeToday = User::where('role', 'user')->where('is_active', true)->whereDate('last_login_at', $today)->count();
+        $inputToday = Card::whereDate('created_at', $localNow->toDateString())->count();
+        $activeToday = User::where('role', 'user')->where('is_active', true)->whereDate('last_login_at', $localNow->toDateString())->count();
         $activeUsers = User::where('role', 'user')->where('is_active', true)->orderBy('name')->get();
 
         return view('dashboard', [
