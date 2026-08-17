@@ -14,9 +14,10 @@ class CardPdfServiceFixed
     private const PAGE_H = 850.56;
     private const FONT_SIZE = 9.5;
 
-    // These coordinates are taken from the actual blank PDF template.
+    // Values align horizontally with the ':' column and vertically with
+    // the printed labels in the Word/PDF template.
     private const VALUE_X = 102.5;
-    private const VALUE_Y = [25.10, 35.90, 46.70, 57.50, 68.20, 79.00];
+    private const VALUE_Y = [18.80, 29.60, 40.40, 51.20, 61.90, 72.70];
     private const VALUE_MAX_WIDTH = 165.0;
 
     // Exact Rectangle 6 geometry from the original DOCX/PDF.
@@ -81,14 +82,12 @@ class CardPdfServiceFixed
 
         $templatePage = $pdf->importPage(1);
         $pdf->AddPage('P', [self::PAGE_W, self::PAGE_H]);
-        // IMPORTANT: keep the Word-exported PDF completely intact.
-        // It already contains the labels and the official block.
         $pdf->useTemplate($templatePage, 0, 0, self::PAGE_W, self::PAGE_H, true);
 
         $font = $this->resolveFranklin($pdf);
         $values = $this->values($card);
 
-        // Write VALUES ONLY. Do not draw labels again; the template already has them.
+        // Write VALUES ONLY. Labels remain untouched in the original template.
         foreach (array_values($values) as $i => $value) {
             $this->writeFitted(
                 $pdf,
