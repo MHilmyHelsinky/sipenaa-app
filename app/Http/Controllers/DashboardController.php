@@ -203,12 +203,7 @@ class DashboardController extends Controller
 
     public function downloadWord(Card $card)
     {
-        $filename = 'kartu_' . Str::slug($card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.docx';
-        $path = $this->generateTemplateDocument($card);
-
-        return response()->download($path, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        ])->deleteFileAfterSend(true);
+        return app(WordDownloadControllerFixed::class)->download($card);
     }
 
     public function dataKartu(): View
