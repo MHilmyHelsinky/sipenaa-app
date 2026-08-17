@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Card;
 use App\Models\User;
 use App\Services\CardPdfService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -30,13 +31,37 @@ class DashboardController extends Controller
         $user = $request->user();
 
         if ($user->role === 'user') {
+            $totalCards = Card::count();
+            $printedCards = Card::whereNotNull('printed_at')->count();
+            $notPrintedCards = max(0, $totalCards - $printedCards);
+            $printedToday = Card::whereDate('printed_at', today())->count();
+
+            $inputTodayCards = Card::query()
+                ->whereDate('created_at', today())
+                ->latest('created_at')
+                ->get();
+
+            $months = collect(range(5, 0))->map(function (int $monthsAgo) {
+                $date = now()->startOfMonth()->subMonths($monthsAgo);
+                $next = $date->copy()->addMonth();
+
+                return [
+                    'label' => $date->locale('id')->translatedFormat('M'),
+                    'count' => Card::whereNotNull('printed_at')
+                        ->where('printed_at', '>=', $date)
+                        ->where('printed_at', '<', $next)
+                        ->count(),
+                ];
+            });
+
             return view('dashboard-user', [
-                'nisnTerdaftar' => 0,
-                'sudahCetak' => 0,
-                'belumCetak' => 0,
-                'cetakHariIni' => 0,
-                'inputTodayCount' => 0,
-                'inputTodayData' => [],
+                'nisnTerdaftar' => $totalCards,
+                'sudahCetak' => $printedCards,
+                'belumCetak' => $notPrintedCards,
+                'cetakHariIni' => $printedToday,
+                'inputTodayCount' => $inputTodayCards->count(),
+                'inputTodayData' => $inputTodayCards,
+                'printChart' => $months,
                 'currentDate' => now()->locale('id')->isoFormat('dddd, D MMMM YYYY'),
                 'currentTime' => now()->format('H:i'),
             ]);
@@ -44,7 +69,7 @@ class DashboardController extends Controller
 
         $today = now();
         $totalPetugas = User::where('role', 'user')->count();
-        $inputToday = User::where('role', 'user')->whereDate('created_at', $today)->count();
+        $inputToday = Card::whereDate('created_at', $today)->count();
         $activeToday = User::where('role', 'user')->where('is_active', true)->whereDate('last_login_at', $today)->count();
         $activeUsers = User::where('role', 'user')->where('is_active', true)->orderBy('name')->get();
 
@@ -185,6 +210,7 @@ class DashboardController extends Controller
     public function downloadPdf(Card $card)
     {
         $path = $this->renderPdf($card);
+        $card->forceFill(['printed_at' => now()])->save();
         $filename = 'kartu_' . Str::slug($card->nama_lengkap ?: 'siswa') . '_' . ($card->nisn ?: 'card') . '.pdf';
 
         return response()->download($path, $filename, [
@@ -203,7 +229,9 @@ class DashboardController extends Controller
 
     public function downloadWord(Card $card)
     {
-        return app(WordDownloadControllerFixed::class)->download($card);
+        $response = app(WordDownloadControllerFixed::class)->download($card);
+        $card->forceFill(['printed_at' => now()])->save();
+        return $response;
     }
 
     public function dataKartu(): View
