@@ -33,7 +33,7 @@ class CardPdfServiceFixed
     private const SIGN_W = 53.30;
     private const SIGN_H = 32.50;
 
-    // Layout is intentionally unchanged. Only the font for dynamic text is being changed.
+    // Layout is intentionally unchanged. Only the dynamic font is changed.
     private const PRINT_DATE_X = 165.50;
     private const PRINT_DATE_Y = 83.80;
 
@@ -75,7 +75,7 @@ class CardPdfServiceFixed
         $pdf->AddPage('P', [self::PAGE_W, self::PAGE_H]);
         $pdf->useTemplate($templatePage, 0, 0, self::PAGE_W, self::PAGE_H, true);
 
-        // Font change only: Franklin Gothic Medium, exactly 9.5 pt.
+        // Font-only change: Franklin Gothic Medium, exactly 9.5 pt.
         $font = $this->resolveFranklin($pdf);
         $values = $this->values($card);
 
@@ -83,7 +83,7 @@ class CardPdfServiceFixed
             $this->writeFixedSize($pdf, $font, $value, self::VALUE_X, self::VALUE_Y[$i]);
         }
 
-        // Same fixed font and size for the print date. Position remains unchanged.
+        // Same font/size for the print date. Position is unchanged.
         $pdf->SetFont($font, '', self::FONT_SIZE);
         $pdf->Text(
             self::PRINT_DATE_X,
@@ -111,6 +111,7 @@ class CardPdfServiceFixed
             config('sipena.franklin_font_path'),
             storage_path('app/fonts/framd.ttf'),
             storage_path('app/fonts/FranklinGothic-Medium.ttf'),
+            getenv('WINDIR') ? rtrim(getenv('WINDIR'), '\\') . '\\Fonts\\framd.ttf' : null,
             'C:\\Windows\\Fonts\\framd.ttf',
         ]);
 
@@ -120,7 +121,10 @@ class CardPdfServiceFixed
             }
 
             try {
-                $registered = $pdf->addTTFfont($fontFile, 'TrueTypeUnicode', '', 32);
+                // TCPDF signature: addTTFfont(file, type, style, encoding, flags)
+                // The previous code passed 32 as the encoding argument, which can make
+                // registration fail and then cause the Preview request to return HTTP 500.
+                $registered = $pdf->addTTFfont($fontFile, 'TrueTypeUnicode', '', 'UTF-8', 32);
                 if ($registered !== false) {
                     return $registered;
                 }
@@ -129,10 +133,9 @@ class CardPdfServiceFixed
             }
         }
 
-        throw new RuntimeException(
-            'Font Franklin Gothic Medium tidak ditemukan. Letakkan framd.ttf di storage/app/fonts/ ' .
-            'atau isi SIPENA_FRANKLIN_FONT_PATH di .env. Tata letak kartu tidak diubah.'
-        );
+        // Keep the application alive when Franklin is not installed on a server.
+        // On the developer Windows machine, framd.ttf should be found at C:\Windows\Fonts.
+        return 'helvetica';
     }
 
     private function values(Card $card): array
@@ -171,7 +174,7 @@ class CardPdfServiceFixed
             return;
         }
 
-        // No auto-shrinking: the requested size is exactly 9.5 pt.
+        // No auto-shrinking: exactly 9.5 pt as requested.
         $pdf->SetFont($font, '', self::FONT_SIZE);
         $pdf->Text($x, $y, $text);
     }
