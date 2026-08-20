@@ -8,9 +8,10 @@ use setasign\Fpdi\Fpdi;
 
 class BatchCardPdfService
 {
-    // One sheet follows the supplied Word example: portrait 567 x 850.56 pt.
+    // Same physical sheet as the Word reference.
     private const PAGE_W = 567.0;
     private const PAGE_H = 850.56;
+    private const CARD_H = self::PAGE_H / 5;
 
     public function render(iterable $cards, int $perPage = 5): string
     {
@@ -19,14 +20,15 @@ class BatchCardPdfService
             throw new RuntimeException('Pilih minimal satu kartu untuk dicetak.');
         }
 
-        // This service is specifically for the one-sheet Word-style layout.
         $perPage = in_array($perPage, [4, 5], true) ? $perPage : 5;
         $singleService = app(CardPdfService::class);
         $singlePaths = [];
 
         try {
+            // Render a cropped/compact card page first. This removes the large
+            // blank lower portion of the normal single-card PDF before stacking.
             foreach ($cards as $card) {
-                $singlePaths[] = $singleService->render($card);
+                $singlePaths[] = $singleService->renderForBatch($card);
             }
 
             $outDir = storage_path('app/public/card_exports/batch');
@@ -37,8 +39,7 @@ class BatchCardPdfService
             $filename = 'cetak-massal-' . now()->format('Ymd-His-u') . '.pdf';
             $outputPath = $outDir . DIRECTORY_SEPARATOR . $filename;
 
-            // Use standalone FPDI here. Batch composition only needs FPDI's import/useTemplate
-            // API; using the TCPDF adapter made the imported pages appear blank in this project.
+            // Standalone FPDI is enough for composition and avoids TCPDF adapter issues.
             $pdf = new Fpdi('P', 'pt', [self::PAGE_W, self::PAGE_H]);
             $pdf->SetMargins(0, 0, 0);
             $pdf->SetAutoPageBreak(false);
@@ -51,7 +52,6 @@ class BatchCardPdfService
                 }
 
                 [$x, $y, $w, $h] = $positions[$index % $perPage];
-
                 $pageCount = $pdf->setSourceFile($path);
                 if ($pageCount < 1) {
                     throw new RuntimeException('PDF kartu tidak memiliki halaman: ' . $path);
@@ -74,16 +74,11 @@ class BatchCardPdfService
 
     private function positions(int $perPage): array
     {
-        // The Word reference shows five repeated card blocks on one physical sheet.
-        // Each slot keeps the exact card aspect ratio while filling one fifth of the page.
+        // The Word sample has five equal card slots on one page.
         $slotH = self::PAGE_H / $perPage;
-        $w = self::PAGE_W;
-        $h = $slotH;
-
-        // 4-up is still supported when selected manually; it simply uses four equal slots.
         $positions = [];
         for ($i = 0; $i < $perPage; $i++) {
-            $positions[] = [0.0, $i * $slotH, $w, $h];
+            $positions[] = [0.0, $i * $slotH, self::PAGE_W, $slotH];
         }
 
         return $positions;
