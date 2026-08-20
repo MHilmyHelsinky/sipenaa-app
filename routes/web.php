@@ -12,6 +12,8 @@ Route::get('/pembuatan-kartu-baru', [DashboardController::class, 'pembuatanKartu
 Route::post('/pembuatan-kartu-baru', [DashboardController::class, 'storeCard'])->middleware(['auth'])->name('pembuatan.kartu.store');
 
 Route::get('/preview-kartu/{card}', [DashboardController::class, 'previewKartu'])->middleware(['auth'])->name('preview.kartu');
+Route::get('/preview-kartu/batch/pdf-preview', [DashboardController::class, 'previewBatchPdf'])->middleware(['auth'])->name('preview.kartu.batch.pdf');
+Route::post('/preview-kartu/batch/clear', [DashboardController::class, 'clearPreviewBatch'])->middleware(['auth'])->name('preview.kartu.batch.clear');
 Route::get('/preview-kartu/{card}/pdf-preview', [DashboardController::class, 'previewPdf'])->middleware(['auth'])->name('preview.kartu.pdf');
 Route::get('/preview-kartu/{card}/download-pdf', [DashboardController::class, 'downloadPdf'])->middleware(['auth'])->name('preview.kartu.download.pdf');
 Route::get('/preview-kartu/{card}/download-word', [WordDownloadController::class, 'download'])->middleware(['auth'])->name('preview.kartu.download.word');
