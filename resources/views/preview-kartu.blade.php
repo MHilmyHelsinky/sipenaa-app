@@ -13,9 +13,10 @@
         .preview-shell { min-height: 100vh; padding: 24px; }
         .preview-panel { width: min(1200px, 100%); min-height: calc(100vh - 48px); margin: 0 auto; background: #fff; border-radius: 18px; box-shadow: 0 18px 45px rgba(15, 23, 42, .12); padding: 18px; display: flex; flex-direction: column; }
         .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-        .back-button, .word-btn, .pdf-btn { border-radius: 10px; padding: 10px 14px; text-decoration: none; border: 1px solid #d5dde7; background: #fff; color: #16324f; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-        .actions { display: flex; gap: 10px; }
+        .back-button, .action-btn { border-radius: 10px; padding: 10px 14px; text-decoration: none; border: 1px solid #d5dde7; background: #fff; color: #16324f; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+        .actions { display: flex; gap: 10px; flex-wrap: wrap; }
         .pdf-btn { border-color: #1d4ed8; background: #1d4ed8; color: #fff; }
+        .add-btn { border-color: #16a34a; background: #16a34a; color: #fff; }
         .subtitle { text-align: center; color: #64748b; font-size: .9rem; margin-bottom: 12px; }
         .pdf-wrap { flex: 1; min-height: 0; background: #e9eef3; border: 1px solid #d8e0e8; border-radius: 14px; overflow: hidden; }
         .pdf-frame { width: 100%; height: calc(100vh - 170px); min-height: 650px; border: 0; display: block; background: #fff; }
@@ -35,17 +36,15 @@
             <div class="topbar">
                 <a class="back-button" href="javascript:history.back()"><i class="fa-solid fa-arrow-left"></i> Kembali</a>
                 <div class="actions">
-                    <a class="word-btn" href="{{ route('preview.kartu.download.word', ['card' => $card->id]) }}"><i class="fa-solid fa-file-word"></i> Word</a>
-                    <a class="pdf-btn" href="{{ route('preview.kartu.download.pdf', ['card' => $card->id]) }}"><i class="fa-solid fa-file-pdf"></i> Download PDF</a>
+                    <a class="action-btn add-btn" href="{{ route('pembuatan.kartu') }}"><i class="fa-solid fa-plus"></i> Tambah Kartu</a>
+                    <a class="action-btn" href="{{ route('data.kartu') }}"><i class="fa-solid fa-layer-group"></i> Pilih Banyak</a>
+                    <a class="action-btn" href="{{ route('preview.kartu.download.word', ['card' => $card->id]) }}"><i class="fa-solid fa-file-word"></i> Word</a>
+                    <a class="action-btn pdf-btn" href="{{ route('preview.kartu.download.pdf', ['card' => $card->id]) }}"><i class="fa-solid fa-file-pdf"></i> Download PDF</a>
                 </div>
             </div>
-            <div class="subtitle">Preview menggunakan template cetak yang sama dengan file PDF yang akan diunduh dan dicetak.</div>
+            <div class="subtitle">Gunakan <b>Tambah Kartu</b> untuk memasukkan data siswa berikutnya. Gunakan <b>Pilih Banyak</b> untuk mencetak 4 atau 5 kartu sekaligus dalam satu lembar PDF.</div>
             <div class="pdf-wrap">
-                <iframe
-                    class="pdf-frame"
-                    src="{{ route('preview.kartu.pdf', ['card' => $card->id]) }}#toolbar=1&navpanes=0&scrollbar=1"
-                    title="Preview kartu siswa"
-                ></iframe>
+                <iframe class="pdf-frame" src="{{ route('preview.kartu.pdf', ['card' => $card->id]) }}#toolbar=1&navpanes=0&scrollbar=1" title="Preview kartu siswa"></iframe>
             </div>
         </div>
     </div>
