@@ -11,7 +11,6 @@ class BatchCardPdfService
     // Same physical sheet as the Word reference.
     private const PAGE_W = 567.0;
     private const PAGE_H = 850.56;
-    private const CARD_H = self::PAGE_H / 5;
 
     public function render(iterable $cards, int $perPage = 5): string
     {
@@ -25,10 +24,10 @@ class BatchCardPdfService
         $singlePaths = [];
 
         try {
-            // Render a cropped/compact card page first. This removes the large
-            // blank lower portion of the normal single-card PDF before stacking.
+            // The single-card renderer already produces the exact card artwork.
+            // For batch output we scale that page into one slot on the Word-sized sheet.
             foreach ($cards as $card) {
-                $singlePaths[] = $singleService->renderForBatch($card);
+                $singlePaths[] = $singleService->render($card);
             }
 
             $outDir = storage_path('app/public/card_exports/batch');
@@ -39,7 +38,6 @@ class BatchCardPdfService
             $filename = 'cetak-massal-' . now()->format('Ymd-His-u') . '.pdf';
             $outputPath = $outDir . DIRECTORY_SEPARATOR . $filename;
 
-            // Standalone FPDI is enough for composition and avoids TCPDF adapter issues.
             $pdf = new Fpdi('P', 'pt', [self::PAGE_W, self::PAGE_H]);
             $pdf->SetMargins(0, 0, 0);
             $pdf->SetAutoPageBreak(false);
@@ -52,8 +50,7 @@ class BatchCardPdfService
                 }
 
                 [$x, $y, $w, $h] = $positions[$index % $perPage];
-                $pageCount = $pdf->setSourceFile($path);
-                if ($pageCount < 1) {
+                if ($pdf->setSourceFile($path) < 1) {
                     throw new RuntimeException('PDF kartu tidak memiliki halaman: ' . $path);
                 }
 
@@ -74,9 +71,10 @@ class BatchCardPdfService
 
     private function positions(int $perPage): array
     {
-        // The Word sample has five equal card slots on one page.
+        // The Word reference places the repeated cards vertically on one sheet.
         $slotH = self::PAGE_H / $perPage;
         $positions = [];
+
         for ($i = 0; $i < $perPage; $i++) {
             $positions[] = [0.0, $i * $slotH, self::PAGE_W, $slotH];
         }
