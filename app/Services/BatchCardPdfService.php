@@ -8,19 +8,21 @@ use setasign\Fpdi\Tcpdf\Fpdi;
 
 class BatchCardPdfService
 {
-    private const A4_W = 595.28;
-    private const A4_H = 841.89;
-    private const CARD_W = 567.0;
-    private const CARD_H = 850.56;
+    // Same page size as the Word template: 7200900 x 10801350 EMU = 567 x 850.56 pt.
+    // The supplied Word example places five card blocks on this single page vertically.
+    private const PAGE_W = 567.0;
+    private const PAGE_H = 850.56;
+    private const SOURCE_CARD_W = 567.0;
+    private const SOURCE_CARD_H = 850.56;
 
-    public function render(iterable $cards, int $perPage = 4): string
+    public function render(iterable $cards, int $perPage = 5): string
     {
         $cards = collect($cards);
         if ($cards->isEmpty()) {
             throw new RuntimeException('Pilih minimal satu kartu untuk dicetak.');
         }
 
-        $perPage = in_array($perPage, [4, 5], true) ? $perPage : 4;
+        $perPage = in_array($perPage, [4, 5], true) ? $perPage : 5;
         $singleService = app(CardPdfService::class);
         $singlePaths = [];
 
@@ -37,9 +39,7 @@ class BatchCardPdfService
             $filename = 'cetak-massal-' . now()->format('Ymd-His') . '.pdf';
             $outputPath = $outDir . DIRECTORY_SEPARATOR . $filename;
 
-            // Use the FPDI-TCPDF adapter because this service needs the TCPDF API
-            // and FPDI's standalone class does not provide setPrintHeader/setPrintFooter.
-            $pdf = new Fpdi('P', 'pt', [self::A4_W, self::A4_H]);
+            $pdf = new Fpdi('P', 'pt', [self::PAGE_W, self::PAGE_H]);
             $pdf->SetMargins(0, 0, 0);
             $pdf->SetAutoPageBreak(false);
             $pdf->setPrintHeader(false);
@@ -49,7 +49,7 @@ class BatchCardPdfService
 
             foreach ($singlePaths as $index => $path) {
                 if (($index % $perPage) === 0) {
-                    $pdf->AddPage('P', [self::A4_W, self::A4_H]);
+                    $pdf->AddPage('P', [self::PAGE_W, self::PAGE_H]);
                 }
 
                 [$x, $y, $w, $h] = $positions[$index % $perPage];
@@ -75,31 +75,23 @@ class BatchCardPdfService
 
     private function positions(int $perPage): array
     {
-        if ($perPage === 5) {
-            $w = 187.0;
-            $h = $w * (self::CARD_H / self::CARD_W);
-            $xLeft = 38.0;
-            $xRight = 370.0;
-            $y1 = 4.0;
-            $y2 = 281.0;
-            $y3 = 558.0;
+        // This is intentionally a vertical layout because the supplied Word example
+        // is one physical sheet containing five repeated card blocks.
+        $gap = 0.0;
+        $slotH = self::PAGE_H / $perPage;
+        $cardH = $slotH - $gap;
+        $scaleW = self::PAGE_W / self::SOURCE_CARD_W;
+        $scaleH = $cardH / self::SOURCE_CARD_H;
+        $scale = min($scaleW, $scaleH);
+        $w = self::SOURCE_CARD_W * $scale;
+        $h = self::SOURCE_CARD_H * $scale;
+        $x = (self::PAGE_W - $w) / 2;
 
-            return [
-                [$xLeft, $y1, $w, $h],
-                [$xRight, $y1, $w, $h],
-                [$xLeft, $y2, $w, $h],
-                [$xRight, $y2, $w, $h],
-                [$xLeft, $y3, $w, $h],
-            ];
+        $positions = [];
+        for ($i = 0; $i < $perPage; $i++) {
+            $positions[] = [$x, $i * $slotH, $w, $h];
         }
 
-        $w = 283.0;
-        $h = $w * (self::CARD_H / self::CARD_W);
-        return [
-            [5.0, 5.0, $w, $h],
-            [307.0, 5.0, $w, $h],
-            [5.0, 421.0, $w, $h],
-            [307.0, 421.0, $w, $h],
-        ];
+        return $positions;
     }
 }
