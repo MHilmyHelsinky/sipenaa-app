@@ -64,7 +64,7 @@
         </div>
 
         @if($previewCount > 1)
-            <div class="subtitle">Sekarang preview mengikuti contoh Word Anda: semua kartu berada pada <b>satu lembar</b> dan disusun vertikal. Contoh Word yang Anda kirim berisi lima kartu dalam satu halaman. fileciteturn169file0L2-L31</div>
+            <div class="subtitle">Preview mengikuti susunan pada file Word acuan: semua kartu berada pada satu lembar dan disusun vertikal. File acuan yang Anda kirim berisi lima kartu pada satu halaman.</div>
             <div class="pdf-wrap">
                 <iframe class="pdf-frame" src="{{ route('preview.kartu.batch.pdf') }}#toolbar=1&navpanes=0&scrollbar=1" title="Preview kartu dalam satu lembar"></iframe>
             </div>
