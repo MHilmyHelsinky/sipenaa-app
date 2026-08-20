@@ -4,14 +4,12 @@ namespace App\Services;
 
 use App\Models\Card;
 use RuntimeException;
-use setasign\Fpdi\Fpdi;
+use setasign\Fpdi\Tcpdf\Fpdi;
 
 class BatchCardPdfService
 {
     private const A4_W = 595.28;
     private const A4_H = 841.89;
-
-    // Source card page is 567 x 850.56 pt. Four-up is the clean/legible layout.
     private const CARD_W = 567.0;
     private const CARD_H = 850.56;
 
@@ -39,6 +37,8 @@ class BatchCardPdfService
             $filename = 'cetak-massal-' . now()->format('Ymd-His') . '.pdf';
             $outputPath = $outDir . DIRECTORY_SEPARATOR . $filename;
 
+            // Use the FPDI-TCPDF adapter because this service needs the TCPDF API
+            // and FPDI's standalone class does not provide setPrintHeader/setPrintFooter.
             $pdf = new Fpdi('P', 'pt', [self::A4_W, self::A4_H]);
             $pdf->SetMargins(0, 0, 0);
             $pdf->SetAutoPageBreak(false);
@@ -76,7 +76,6 @@ class BatchCardPdfService
     private function positions(int $perPage): array
     {
         if ($perPage === 5) {
-            // 5-up is a compact option. It intentionally scales smaller than 4-up.
             $w = 187.0;
             $h = $w * (self::CARD_H / self::CARD_W);
             $xLeft = 38.0;
